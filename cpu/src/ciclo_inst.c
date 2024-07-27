@@ -7,7 +7,6 @@ char* fetch(int conexion, t_pcb* pcb){
     int x = recibir_operacion(conexion);
     char* ins = recibir_mensaje(conexion, cpu_log);
     pcb->registros->PC++;
-
     return ins;
 }
 
@@ -87,7 +86,6 @@ t_decode* decode(char* buffer){
 
     eliminar_linea_n(buffer);
     char** arrayIns = string_split(buffer," ");
-    //printf("Instruccion: %s.\n", arrayIns[0]);
 
     instrucciones ins = obtener_instruccion(arrayIns[0]);
     t_decode* decode = malloc(sizeof(t_decode));
@@ -172,8 +170,7 @@ t_decode* decode(char* buffer){
         char* registro_direccion = strdup(arrayIns[2]);
         list_add(decode->registroCpu, registro_direccion);
         char* registro_tamanio = strdup(arrayIns[3]);
-        list_add(decode->registroCpu, registro_tamanio); 
-        log_info(cpu_log, " >>> %s y %s", registro_direccion, registro_tamanio); ;
+        list_add(decode->registroCpu, registro_tamanio);
         break;
         }
         case IO_STDOUT_WRITE:{
@@ -296,7 +293,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
         case SET:{
             uint8_t valor = (uint8_t) decode->valor;
             char* registro_adepositar = list_get(decode->registroCpu,0);
-            log_info(logger, "PID: %d - Ejecutando: SET %s %d", pcb->pid, registro_adepositar, valor);        
+            log_info(logger, "PID: <%d> - Ejecutando: SET - <%s %u>", pcb->pid, registro_adepositar, valor);        
             asignar_registro(pcb->registros, registro_adepositar, valor);    
             break;
          }
@@ -305,6 +302,8 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registro_direccion = list_get(decode->registroCpu,1);
             uint8_t dir_logica = (uint8_t) obtener_valor_registro(pcb->registros, registro_direccion);
             t_dir_fisica* dir_fisica = mmu(dir_logica, pcb->pid);
+            
+            log_info(logger, "PID: <%u> - Ejecutando: <MOV_IN> - <%s %s>", pcb->pid, registro_datos, registro_direccion);        
 
             int tamanio;
 
@@ -335,14 +334,13 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
 
             enviar_a_mem(conexion_memoria_cpu, mensaje, PED_LECTURA);
 
-            log_info(logger, "PID: %d - Ejecutando: MOV_IN %s %s", pcb->pid, registro_datos, registro_direccion);        
 
             int i = recibir_operacion(conexion_memoria_cpu);
             char* msj = recibir_mensaje(conexion_memoria_cpu, cpu_log);
             int fra;
             int pag;
             sscanf(msj, "%s/%d/%d", leido,&fra,&pag);
-            log_info(logger, "MOV_IN %s %s: La lectura fue <%s>", registro_datos, registro_direccion, leido); 
+            log_info(logger, "PID: <%u> - Accion: <LEER> - Direccion Fisica: <%d> - Valor: <%s>", pid ,num_frame+desplazamiento, leido); 
             asignar_registro(pcb->registros, registro_datos, atoi(leido));
             }else{
             int tam_mensaje1 = sizeof(uint16_t)+sizeof(num_frame)+sizeof(desplazamiento)+sizeof(pid); 
@@ -350,8 +348,6 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             sprintf(mensaje1, "%d/%d/%d/%u", 2,num_frame,desplazamiento,pid); 
 
             enviar_a_mem(conexion_memoria_cpu, mensaje1, PED_LECTURA);
-
-            log_info(logger, "PID: %d - Ejecutando: MOV_IN %s %s", pcb->pid, registro_datos, registro_direccion);        
 
             int i = recibir_operacion(conexion_memoria_cpu);
             char* msj = recibir_pedido(conexion_memoria_cpu);
@@ -362,8 +358,8 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             t_dir_fisica* dir_fisica = mmu(pag1*tam_pag, pcb->pid);
             int num_frame = dir_fisica->nro_frame;
             
+            log_info(logger, "PID: <%u> - Accion: <LEER> - Direccion Fisica: <%d> - Valor: <%s>", pid ,fra_nuevo, leo); 
 
-            log_info(logger, "MOV_IN %s %s: La lectura fue <%s>", registro_datos, registro_direccion, leo); 
             asignar_registro(pcb->registros, registro_datos, atoi(leo));
             string_append(&leido, leo);
             int tam_mensaje2 = sizeof(uint16_t)+sizeof(num_frame)+sizeof(int)+sizeof(pid); 
@@ -371,9 +367,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             sprintf(mensaje2, "%d/%d/%d/%u", 2,num_frame,0,pid); 
 
             enviar_a_mem(conexion_memoria_cpu, mensaje2, PED_LECTURA);
-
-            log_info(logger, "PID: %d - Ejecutando: MOV_IN %s %s", pcb->pid, registro_datos, registro_direccion);        
-
+   
             int ii = recibir_operacion(conexion_memoria_cpu);
             char* msjj = recibir_pedido(conexion_memoria_cpu);
             char leo2[8];
@@ -381,7 +375,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             int pag2;
             sscanf(msjj, "%7[^/]/%d", leo2,&fra2,&pag2);
             
-            log_info(logger, "MOV_IN %s %s: La lectura fue <%s>", registro_datos, registro_direccion, leo2); 
+            log_info(logger, "PID: <%u> - Accion: <LEER> - Direccion Fisica: <%d> - Valor: <%s>", pid ,fra2, leo2); 
             asignar_registro(pcb->registros, registro_datos, atoi(leo2));
             string_append(&leido, leo2);
             }
@@ -396,7 +390,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registro_direccion = list_get(decode->registroCpu,0);
             uint8_t dir_logica = (uint8_t) obtener_valor_registro(pcb->registros, registro_direccion);
 
-            log_info(logger, "PID: %d - Ejecutando: MOV_OUT %s %s", pcb->pid, registro_direccion, registro_datos);        
+            log_info(logger, "PID: <%u> - Ejecutando: <MOV_OUT> - <%s %s>", pcb->pid,  registro_direccion, registro_datos);         
 
             uint8_t valor = (uint8_t) obtener_valor_registro(pcb->registros, registro_datos);
             int tamanio;
@@ -429,9 +423,12 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
                 if(salir==false){
                 int tam_mensaje = sizeof(tamanio)+sizeof(aescribir)+sizeof(num_frame)+sizeof(desplazamiento)+sizeof(pcb->pid); 
                 char* mensaje = malloc(tam_mensaje);
-                sprintf(mensaje, "%d/%s/%d/%d/%u", tamanio,aescribir,num_frame,desplazamiento,pcb->pid);     
-                log_info(cpu_log, "ESCRIBIR: en Frame <%d> y Desp <%d>:<%s>", num_frame, desplazamiento, aescribir);
+                sprintf(mensaje, "%d/%s/%d/%d/%u", tamanio,aescribir,num_frame,desplazamiento,pcb->pid);  
+
+                log_info(logger, "PID: <%u> - Accion: <ESCRIBIR> - Direccion Fisica: <%d> - Valor: <%s>", pcb->pid ,num_frame+desplazamiento, aescribir); 
+   
                 enviar_a_mem(conexion_memoria_cpu, mensaje,PED_ESCRITURA);
+
                 int i = recibir_operacion(conexion_memoria_cpu);
                 int pag;
                 int frame;
@@ -449,14 +446,16 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
                     int tam_mensaje1 = sizeof(tamanio)+strlen(es)+sizeof(num_frame)+sizeof(desplazamiento)+sizeof(pcb->pid); 
                     char* mensaje1 = malloc(tam_mensaje1);
                     sprintf(mensaje1, "%d/%s/%d/%d/%u", tamanio,es,num_frame,desplazamiento,pcb->pid);     
-                    log_info(cpu_log, "PID: %u - Accion:ESCRIBIR - Direccion fisica: %d - Tamaño %d",pcb->pid ,num_frame+desplazamiento,2);
+                    
+                    log_info(logger, "PID: <%u> - Accion: <ESCRIBIR> - Direccion Fisica: <%d> - Valor: <%s>", pcb->pid ,num_frame+desplazamiento, es); 
+
                     enviar_a_mem(conexion_memoria_cpu, mensaje1,PED_ESCRITURA);
+
                     int ii = recibir_operacion(conexion_memoria_cpu);
                     int pag1;
                     int frame_sig;
                     char* buffer = recibir_pedido(conexion_memoria_cpu);
                     sscanf(buffer, "%d/%d", &frame_sig,&pag1);
-                    printf("la pag es %d",pag1);
                     int dir_log = pag1*tam_pag;
                     t_dir_fisica* dir_fisica = mmu(dir_log, pcb->pid);
                     int num_frame2 = dir_fisica->nro_frame;             
@@ -464,8 +463,10 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
                     int tam_mensaje2 = sizeof(tamanio)+strlen(es2)+sizeof(num_frame2)+sizeof(pcb->pid)+sizeof(int); 
                     char* mensaje2 = malloc(tam_mensaje2);
                     sprintf(mensaje2, "%d/%s/%d/%d/%u", tamanio,es2,num_frame2,0,pcb->pid);     
+                    
+                    log_info(logger, "PID: <%u> - Accion: <ESCRIBIR> - Direccion Fisica: <%d> - Valor: <%s>", pcb->pid ,num_frame2, es2);
+                    
                     enviar_a_mem(conexion_memoria_cpu, mensaje2,PED_ESCRITURA);
-                    log_info(cpu_log, "PID: %u - Accion: ESCRIBIR - Direccion fisica: %d - Tamaño %d",pcb->pid ,num_frame2,2);
                     int i = recibir_operacion(conexion_memoria_cpu);
                     int pag2;
                     int frame_sig2;
@@ -479,7 +480,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registroDestino = (char*)list_get(decode->registroCpu,0);
             char* registroOrigen = (char*)list_get(decode->registroCpu,1);
 
-            log_info(logger, "PID: %d - Ejecutando: SUM %s %s", pcb->pid, registroDestino, registroOrigen);        
+            log_info(logger, "PID: <%u> - Ejecutando: <SUM> - <%s %s>", pcb->pid, registroDestino, registroOrigen);        
 
             uint8_t valor2 = (uint8_t) obtener_valor_registro(pcb->registros, registroDestino);
             uint8_t valor1 = (uint8_t) obtener_valor_registro(pcb->registros, registroOrigen);
@@ -491,7 +492,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registroDestino=(char*)list_get(decode->registroCpu, 0);
             char* registroOrigen=(char*)list_get(decode->registroCpu, 1);
 
-            log_info(logger, "PID: %d - Ejecutando: SUB %s %s", pcb->pid, registroDestino, registroOrigen);        
+            log_info(logger, "PID: <%u> - Ejecutando: <SUB> - <%s %s>", pcb->pid, registroDestino, registroOrigen);        
 
             uint8_t valor2 = (uint8_t) obtener_valor_registro(pcb->registros, registroDestino);
             uint8_t valor1 = (uint8_t) obtener_valor_registro(pcb->registros, registroOrigen);
@@ -503,7 +504,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registro = (char*)list_get(decode->registroCpu, 0);
             uint32_t instruccion = (uint32_t)list_get(decode->registroCpu, 1);
             
-            log_info(cpu_log, "PID: %d - Ejecutando: JNZ %s %d", pcb->pid, registro, instruccion);
+            log_info(cpu_log, "PID: <%u> - Ejecutando: <JNZ> - <%s %u>", pcb->pid, registro, instruccion);
             
             uint8_t valor=obtener_valor_registro(pcb->registros, registro);
             if(valor!=0){
@@ -515,7 +516,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
         }
         case RESIZE:{
             int tamanio_resize = decode->valor;
-            log_info(cpu_log, "PID: %d - Ejecutando: RESIZE %d", pcb->pid, tamanio_resize);     
+            log_info(cpu_log, "PID: <%u> - Ejecutando: <RESIZE> - <%d>", pcb->pid, tamanio_resize);     
             char* mensaje = malloc(sizeof(tamanio_resize)+sizeof(pcb->pid));
             sprintf(mensaje, "%d/%u", tamanio_resize,pcb->pid);       
             enviar_a_mem(conexion_memoria_cpu, mensaje,CPU_RESIZE);
@@ -547,7 +548,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             sprintf(mensaje, "%d/%d/%d/%d/%d/%u", d1,d2,d3,d4,cant_char,pid);      //ver de implementar en demas    
             enviar_a_mem(conexion_memoria_cpu, mensaje,CPY_STRING);
 
-            log_info(logger, "PID: %d - Ejecutando: CPY_STRING %d", pcb->pid, bytes);  
+            log_info(logger, "PID: <%u> - Ejecutando: <CPY_STRING> - <%d>", pcb->pid, bytes);  
            
             break;
         }
@@ -555,7 +556,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
         case WAIT:{
             ret.nombre_recurso = strdup(decode->recurso); // TODO: Capaz necesita un free
 
-            log_info(cpu_log, "PID: %d - Ejecutando: WAIT %s", pcb->pid, ret.nombre_recurso);
+            log_info(cpu_log, "PID: <%u> - Ejecutando: <WAIT> - <%s>", pcb->pid, ret.nombre_recurso);
 
             ret.blockeo = REC_BLOCK_WAIT;
             return ret; 
@@ -563,7 +564,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
         case SIGNAL:{
             ret.nombre_recurso = strdup(decode->recurso); // TODO: Capaz necesita un free
 
-            log_info(cpu_log, "PID: %d - Ejecutando: SIGNAL %s", pcb->pid, ret.nombre_recurso);
+            log_info(cpu_log, "PID: <%u> - Ejecutando: <SIGNAL> - <%s>", pcb->pid, ret.nombre_recurso);
 
             ret.blockeo = REC_BLOCK_SIGNAL;
             return ret;
@@ -573,7 +574,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             parametros->interfaz = strdup(decode->interfaz);
             parametros->params.io_gen_sleep.unidades_trabajo = decode->valor;
 
-            log_info(cpu_log, "PID: %d - Ejecutando: IO_GEN_SLEEP %s %d", pcb->pid, parametros->interfaz, parametros->params.io_gen_sleep.unidades_trabajo);
+            log_info(cpu_log, "PID: <%u> - Ejecutando: <IO_GEN_SLEEP> - <%s %d>", pcb->pid, parametros->interfaz, parametros->params.io_gen_sleep.unidades_trabajo);
 
             ret.io_opcode = IO_GEN_SLEEP;
             ret.blockeo = IO_BLOCK;
@@ -589,7 +590,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registro_direccion = list_get(decode->registroCpu, 0);
             char* registro_tamanio = list_get(decode->registroCpu, 1);
 
-            log_info(cpu_log, "PID: %u - Ejecutando IO_STDIN_READ %s %s %s", pcb->pid, parametros->interfaz,registro_direccion, registro_tamanio);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_STDIN_READ> -  <%s %s %s>", pcb->pid, parametros->interfaz,registro_direccion, registro_tamanio);
 
             int dir_logica=(int)obtener_valor_registro(pcb->registros, registro_direccion);
             parametros->registro_tamanio = (uint32_t)obtener_valor_registro(pcb->registros, registro_tamanio); 
@@ -625,7 +626,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             char* registro_direccion = (char*)list_get(decode->registroCpu, 0);
             char* registro_tamanio = (char*)list_get(decode->registroCpu, 1);
 
-            log_info(cpu_log, "PID: %d - Ejecutando IO_STDOUT_WRITE %s %s %s", pcb->pid, parametros->interfaz, registro_direccion, registro_tamanio);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_STDOUT_WRITE> - <%s %s %s>", pcb->pid, parametros->interfaz, registro_direccion, registro_tamanio);
 
             int dir_logica=(int)obtener_valor_registro(pcb->registros, registro_direccion);
             parametros->registro_tamanio = (uint32_t)obtener_valor_registro(pcb->registros, registro_tamanio); 
@@ -660,7 +661,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             parametros->interfaz = strdup(decode->interfaz);
             parametros->params.io_fs.nombre_archivo = strdup(decode->archivo);
 
-            log_info(cpu_log, "PID: %d - Ejecutando IO_FS_CREATE %s %s", pcb->pid, parametros->interfaz, parametros->params.io_fs.nombre_archivo);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_FS_CREATE> - <%s %s>", pcb->pid, parametros->interfaz, parametros->params.io_fs.nombre_archivo);
     
             ret.blockeo = IO_BLOCK;
             ret.instrucciones = parametros;
@@ -673,7 +674,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             instruccion_params* parametros = malloc(sizeof(instruccion_params));
             parametros->interfaz = strdup(decode->interfaz);
             parametros->params.io_fs.nombre_archivo = strdup(decode->archivo);
-            log_info(cpu_log, "PID: %d - Ejecutando IO_FS_DELETE %s %s", pcb->pid, parametros->interfaz, parametros->params.io_fs.nombre_archivo);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_FS_DELETE> - <%s %s>", pcb->pid, parametros->interfaz, parametros->params.io_fs.nombre_archivo);
 
             ret.blockeo = IO_BLOCK;
             ret.io_opcode = IO_FS_DELETE;
@@ -688,7 +689,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             parametros->params.io_fs.nombre_archivo = strdup(decode->archivo);
             char* registro_tamanio = list_get(decode->registroCpu, 0);
             parametros->registro_tamanio = (uint32_t)obtener_valor_registro(pcb->registros, registro_tamanio);
-            log_info(cpu_log, "PID: %d - Ejecutando IO_FS_TRUNCATE %s %s %i", pcb->pid, parametros->interfaz, parametros->params.io_fs.nombre_archivo, parametros->registro_tamanio);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_FS_TRUNCATE> - <%s %s %i>", pcb->pid, parametros->interfaz, parametros->params.io_fs.nombre_archivo, parametros->registro_tamanio);
             ret.blockeo = IO_BLOCK;
             ret.io_opcode = IO_FS_TRUNCATE;
             ret.instrucciones = parametros;
@@ -727,7 +728,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             free(dir_fisica);
             parametros->params.io_fs.registro_puntero_archivo = (off_t)obtener_valor_registro(pcb->registros, registro_puntero_archivo);
 
-            log_info(cpu_log, "PID: %d - Ejecutando IO_FS_WRITE %s %s %s %jd", pcb->pid, parametros->interfaz, registro_tamanio, registro_direccion, parametros->params.io_fs.registro_puntero_archivo);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_FS_WRITE> - <%s %s %s %jd>", pcb->pid, parametros->interfaz, registro_tamanio, registro_direccion, parametros->params.io_fs.registro_puntero_archivo);
     
             ret.blockeo = IO_BLOCK;
             ret.io_opcode = IO_FS_WRITE;
@@ -765,7 +766,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             }
             free(dir_fisica);
             parametros->params.io_fs.registro_puntero_archivo = (off_t)obtener_valor_registro(pcb->registros, registro_puntero_archivo);
-            log_info(cpu_log, "PID: %d - Ejecutando IO_FS_READ %s %s %s %jd", pcb->pid, parametros->interfaz, registro_tamanio, registro_direccion, parametros->params.io_fs.registro_puntero_archivo);
+            log_info(cpu_log, "PID: <%u> - Ejecutando <IO_FS_READ> - <%s %s %s %jd>", pcb->pid, parametros->interfaz, registro_tamanio, registro_direccion, parametros->params.io_fs.registro_puntero_archivo);
 
             ret.io_opcode = IO_FS_READ;
             ret.blockeo = IO_BLOCK;
@@ -773,7 +774,7 @@ t_cpu_blockeo execute(t_decode* decode, t_pcb* pcb, t_log *logger){
             return ret;
         }
         case EXIIT:{
-            log_info(logger, "PID: %d - Ejecutando: EXIT", pcb->pid);
+            log_info(logger, "PID: <%u> - Ejecutando: <EXIT>", pcb->pid);
             ret.blockeo = EXIT_BLOCK;
             return ret;
         }
@@ -795,8 +796,6 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         
         t_decode* decodeado = decode(ins);
     
-        //log_debug(logger, "Numero Instruccion: %d", decodeado->op_code);
-
         blockeo = execute(decodeado,pcb, logger);
         
         loggear_registros(pcb, logger);
@@ -808,7 +807,7 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         hay_interrupcion = 0;
         pthread_mutex_unlock(&lock_interrupt);
         pcb->motivo_desalojo = 1;
-        log_debug(cpu_log, "Envio PCB interrumpido por fin de quantum");
+        log_debug(log_aux_cpu, "Envio PCB interrumpido por fin de quantum");
         enviar_pcb(pcb, socket_cliente);
         return;
     }
@@ -817,7 +816,7 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         hay_interrupcion = 0;
         pthread_mutex_unlock(&lock_interrupt);
         pcb->motivo_desalojo = 0;
-        log_debug(cpu_log, "Envio PCB terminado.");
+        log_debug(log_aux_cpu, "Envio PCB terminado.");
         enviar_pcb(pcb, socket_cliente);
         return;
     }
@@ -826,14 +825,14 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         hay_interrupcion = 0;
         pthread_mutex_unlock(&lock_interrupt);
         pcb->motivo_desalojo = 2;
-        log_debug(cpu_log, "Envio PCB desalojado por solicitud a interfaz");
+        log_debug(log_aux_cpu, "Envio PCB desalojado por solicitud a interfaz");
         enviar_pcb(pcb, socket_cliente);
 
         t_paquete_instruccion* paquete = malloc(sizeof(t_paquete_instruccion));
         paquete->codigo_operacion = blockeo.io_opcode;
-        log_debug(cpu_log, "OPCODE enviado: %d", paquete->codigo_operacion);
+        log_debug(log_aux_cpu, "OPCODE enviado: %d", paquete->codigo_operacion);
         enviar_instruccion_a_Kernel(paquete, blockeo.instrucciones, socket_cliente);
-        log_debug(cpu_log, "Instruccion enviada al socket: %d.", socket_cliente);
+        log_debug(log_aux_cpu, "Instruccion enviada al socket: %d.", socket_cliente);
         free(blockeo.instrucciones->interfaz);
         free(blockeo.instrucciones);
         free(paquete);
@@ -844,10 +843,10 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         hay_interrupcion = 0;
         pthread_mutex_unlock(&lock_interrupt);
         pcb->motivo_desalojo = 3;
-        log_debug(cpu_log, "Envio PCB desalojado por WAIT");
+        log_debug(log_aux_cpu, "Envio PCB desalojado por WAIT");
         enviar_pcb(pcb, socket_cliente);
 
-        log_debug(cpu_log, "Envio el nombre del recurso afectado");
+        log_debug(log_aux_cpu, "Envio el nombre del recurso afectado");
         enviar_mensaje(blockeo.nombre_recurso, socket_cliente);
         // enviar_nombre_recurso(blockeo.nombre_recurso, socket_cliente);
     }
@@ -856,10 +855,10 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         hay_interrupcion = 0;
         pthread_mutex_unlock(&lock_interrupt);
         pcb->motivo_desalojo = 4;
-        log_debug(cpu_log, "Envio PCB desalojado por SIGNAL");
+        log_debug(log_aux_cpu, "Envio PCB desalojado por SIGNAL");
         enviar_pcb(pcb, socket_cliente);
 
-        log_debug(cpu_log, "Envio el nombre del recurso afectado");
+        log_debug(log_aux_cpu, "Envio el nombre del recurso afectado");
         enviar_mensaje(blockeo.nombre_recurso, socket_cliente);
     }
     if(blockeo.blockeo == OUT_OF_MEM)
@@ -867,23 +866,23 @@ void realizar_ciclo_inst(int conexion, t_pcb* pcb, t_log* logger, int socket_cli
         hay_interrupcion = 0;
         pthread_mutex_unlock(&lock_interrupt);
         pcb->motivo_desalojo = 5;
-        log_debug(cpu_log, "PCB desalojado por out of mem");
+        log_debug(log_aux_cpu, "PCB desalojado por out of mem");
         enviar_pcb(pcb, socket_cliente);
     }
 }
 
 void loggear_registros(t_pcb* pcb, t_log* logger)
 {
-    log_debug(logger, "Estado del proceso PID <%d>:", pcb->pid);
-    log_debug(logger, "AX: %d", pcb->registros->AX);
-    log_debug(logger, "BX: %d", pcb->registros->BX);
-    log_debug(logger, "CX: %d", pcb->registros->CX);
-    log_debug(logger, "DX: %d", pcb->registros->DX);
-    log_debug(logger, "EAX: %d", pcb->registros->EAX);
-    log_debug(logger, "EBX: %d", pcb->registros->EBX);
-    log_debug(logger, "ECX: %d", pcb->registros->ECX);
-    log_debug(logger, "EDX: %d", pcb->registros->EDX);
-    log_debug(logger, "SI: %d", pcb->registros->SI);
-    log_debug(logger, "DI: %d", pcb->registros->DI);
-    log_debug(logger, "PC: %d", pcb->registros->PC);
+    log_debug(log_aux_cpu, "Estado del proceso PID <%d>:", pcb->pid);
+    log_debug(log_aux_cpu, "AX: %d", pcb->registros->AX);
+    log_debug(log_aux_cpu, "BX: %d", pcb->registros->BX);
+    log_debug(log_aux_cpu, "CX: %d", pcb->registros->CX);
+    log_debug(log_aux_cpu, "DX: %d", pcb->registros->DX);
+    log_debug(log_aux_cpu, "EAX: %d", pcb->registros->EAX);
+    log_debug(log_aux_cpu, "EBX: %d", pcb->registros->EBX);
+    log_debug(log_aux_cpu, "ECX: %d", pcb->registros->ECX);
+    log_debug(log_aux_cpu, "EDX: %d", pcb->registros->EDX);
+    log_debug(log_aux_cpu, "SI: %d", pcb->registros->SI);
+    log_debug(log_aux_cpu, "DI: %d", pcb->registros->DI);
+    log_debug(log_aux_cpu, "PC: %d", pcb->registros->PC);
 }

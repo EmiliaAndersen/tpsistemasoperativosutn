@@ -1,6 +1,7 @@
 #include "main.h"
 
 t_log* kernel_log;
+t_log* log_aux;
 t_config* kernel_config;
 
 t_queue* colaNew;
@@ -42,6 +43,7 @@ int main(void)
     interfaces = list_create();
 
     kernel_log = iniciar_logger("kernel.log","kernel");
+    log_aux = iniciar_logger("kernel_aux.log", "kernel_aux");
 
     kernel_config = iniciar_config("kernel.config");
 
@@ -60,14 +62,14 @@ int main(void)
     puerto_escucha = config_get_string_value(kernel_config, "PUERTO_ESCUCHA");
 
     // Inicializo la estructura del planificador
-    t_planificacion *planificador = inicializar_t_planificacion(kernel_config, kernel_log);
+    t_planificacion *planificador = inicializar_t_planificacion(kernel_config, kernel_log, log_aux);
 
 
     // ------- Establecer conexiones --------
     // ---- Memoria ----
     conexion_memoria = crear_conexion(ip_memoria, puerto_memoria);
-    log_info(kernel_log, "KERNEL se conectó a MEMORIA");
-    send_handshake(conexion_memoria, kernel_log, "KERNEL / MEMORIA");
+    log_info(log_aux, "KERNEL se conectó a MEMORIA");
+    send_handshake(conexion_memoria, log_aux, "KERNEL / MEMORIA");
 
     planificador->socket_memoria = conexion_memoria;
 
@@ -97,7 +99,7 @@ int main(void)
     /* KERNEL - Servidor */  
     // Inicio server
     kernel_server = iniciar_servidor(puerto_escucha, kernel_log);
-    log_info(kernel_log, "KERNEL listo para recibir clientes");
+    log_info(log_aux, "KERNEL listo para recibir clientes");
 
     t_atender_cliente_args* args = malloc(sizeof(t_atender_cliente_args));
     args->log = kernel_log;
@@ -130,6 +132,7 @@ int main(void)
     list_destroy(interfaces);
     free(args);
     log_destroy(kernel_log);
+    log_destroy(log_aux);
     config_destroy(kernel_config);
     // free(colaNew);
     // free(colaExit);
@@ -147,10 +150,10 @@ void* conectar_dispatch(void* args)
     t_planificacion *planificacion = (t_planificacion*) args;
 
     planificacion->socket_cpu_dispatch = crear_conexion(planificacion->config.config_leida.ip_cpu, planificacion->config.config_leida.puerto_cpu_dispatch);
-    log_info(kernel_log, "KERNEL se conectó a CPU DISPATCH");
-    send_handshake(planificacion->socket_cpu_dispatch, kernel_log, "KERNEL / CPU DISPATCH");
+    log_info(log_aux, "KERNEL se conectó a CPU DISPATCH");
+    send_handshake(planificacion->socket_cpu_dispatch, log_aux, "KERNEL / CPU DISPATCH");
 
-    log_debug(kernel_log, "Conectado a dispatch en: %d", planificacion->socket_cpu_dispatch);
+    log_debug(log_aux, "Conectado a dispatch en: %d", planificacion->socket_cpu_dispatch);
 }
 
 void* conectar_interrupt(void* args)
@@ -158,8 +161,8 @@ void* conectar_interrupt(void* args)
     t_planificacion *planificacion = (t_planificacion*) args;
 
     planificacion->socket_cpu_interrupt = crear_conexion(planificacion->config.config_leida.ip_cpu, planificacion->config.config_leida.puerto_cpu_interrupt);
-    log_info(kernel_log, "KERNEL se conectó a CPU INTERRUPT");
-    send_handshake(planificacion->socket_cpu_interrupt, kernel_log, "KERNEL / CPU INTERRUPT");
+    log_info(log_aux, "KERNEL se conectó a CPU INTERRUPT");
+    send_handshake(planificacion->socket_cpu_interrupt, log_aux, "KERNEL / CPU INTERRUPT");
 
-    log_debug(kernel_log, "Conectado a interrupt en: %d", planificacion->socket_cpu_interrupt);
+    log_debug(log_aux, "Conectado a interrupt en: %d", planificacion->socket_cpu_interrupt);
 }

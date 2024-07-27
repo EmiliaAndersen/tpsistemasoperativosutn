@@ -43,30 +43,32 @@ void funciones(char* leido, t_planificacion *kernel_argumentos) {
     } else if (string_equals_ignore_case(funcion[0], "PROCESO_ESTADO")) {
         proceso_estado(kernel_argumentos);
     } else if (!string_is_empty(leido)){
-        log_error(kernel_argumentos->logger, ">> COMANDO ERRONEO!");
+        log_error(kernel_argumentos->log_aux, ">> COMANDO ERRONEO!");
     }
     string_array_destroy(funcion);
 }
 
 void ejecutar_script(char* path, t_planificacion *kernel_argumentos){
-    char* complemento = "/home/utnso"; 
+    char* complemento = "/home/utnso/c-comenta-pruebas"; 
     size_t len_path = strlen(path);
     size_t len_complemento = strlen(complemento);
     size_t len_total = len_path + len_complemento + 2;
     char* ruta_completa = malloc(len_total);
     if (ruta_completa == NULL) {
-        log_error(kernel_argumentos->logger, "Error: No se pudo asignar memoria para la ruta completa.");
+        log_error(kernel_argumentos->log_aux, "Error: No se pudo asignar memoria para la ruta completa.");
+        free(ruta_completa);
         return;
     }
     strcpy(ruta_completa, complemento);
     strcat(ruta_completa, path);
 
-    log_debug(kernel_argumentos->logger, ">> Se ejecuta el script %s", path);
-    log_debug(kernel_argumentos->logger, ">> Se ejecuta el script %s", ruta_completa);
+    // log_debug(kernel_argumentos->log_aux, ">> Se ejecuta el script %s", path);
+    log_debug(kernel_argumentos->log_aux, ">> Se ejecuta el script %s", ruta_completa);
 
     FILE* file = fopen(ruta_completa, "r");
     if (file == NULL) {
-        log_error(kernel_argumentos->logger, "No se pudo abrir el archivo: %s", path);
+        log_error(kernel_argumentos->log_aux, "No se pudo abrir el archivo: %s", path);
+        free(ruta_completa);
         return;
     }
 
@@ -81,13 +83,14 @@ void ejecutar_script(char* path, t_planificacion *kernel_argumentos){
             continue;
         }*/
 
-        log_info(kernel_argumentos->logger, ">> Ejecutando comando: %s", linea);
+        log_debug(kernel_argumentos->log_aux, ">> Ejecutando comando: %s", linea);
         funciones(linea, kernel_argumentos);
     }
 
     free(linea);
     fclose(file);
-    log_info(kernel_argumentos->logger, ">> Finalizó la ejecución del script %s", path);
+    free(ruta_completa);
+    log_debug(kernel_argumentos->log_aux, ">> Finalizó la ejecución del script %s", path);
 }
 
 void iniciar_proceso(char* path, t_planificacion *kernel_argumentos){
@@ -99,7 +102,7 @@ void iniciar_proceso(char* path, t_planificacion *kernel_argumentos){
     pcb = crear_nuevo_pcb(&pid_contador, kernel_argumentos);
     queue_push(kernel_argumentos->colas.new, pcb);
 
-    log_debug(kernel_argumentos->logger, ">> Se crea el proceso %s en NEW", path);
+    log_info(kernel_argumentos->logger, "Se crea el proceso %s en NEW", path);
 
     char* mensaje_enviar = malloc(sizeof(uint32_t)+strlen(path)+2);
     uint32_t pid = pcb->pid;
@@ -133,67 +136,67 @@ void finalizar_proceso(uint32_t pid, t_planificacion *kernel_argumentos){
     t_pcb* pcb_candidato;
     t_pcb* pcb_a_eliminar = NULL;
     pthread_mutex_lock(&kernel_argumentos->planning_mutex);
-    log_warning(kernel_argumentos->logger, "Se bloquea la planificacion");
+    // log_warning(kernel_argumentos->log_aux, "Se bloquea la planificacion");
 
-    log_debug(kernel_argumentos->logger, "Busco en EXEC");
+    log_debug(kernel_argumentos->log_aux, "Busco en EXEC");
     if(!queue_is_empty(kernel_argumentos->colas.exec))
     {
         pcb_candidato = queue_peek(kernel_argumentos->colas.exec);
         if(pcb_candidato->pid == pid)
         {
-            log_debug(kernel_argumentos->logger, "Encontre el PID: %d en EXEC", pcb_candidato->pid);
+            log_debug(kernel_argumentos->log_aux, "Encontre el PID: %d en EXEC", pcb_candidato->pid);
             pcb_a_eliminar = queue_pop(kernel_argumentos->colas.exec);
             eliminar_proceso(pcb_a_eliminar, kernel_argumentos);
             pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
-            log_debug(kernel_argumentos->logger, "Sali del mutex");
+            // log_debug(kernel_argumentos->logger, "Sali del mutex");
             enviar_int_a_interrupt(kernel_argumentos->socket_cpu_interrupt, pid);
-            log_debug(kernel_argumentos->logger, "Interrupcion enviada al PID: %d", pid);
+            log_debug(kernel_argumentos->log_aux, "Interrupcion enviada al PID: %d", pid);
             return;
         }
     }
 
-    log_debug(kernel_argumentos->logger, "Busco en READY");
+    log_debug(kernel_argumentos->log_aux, "Busco en READY");
     pcb_a_eliminar = buscar_pcb_en_cola(kernel_argumentos->colas.ready, pid);
     if(pcb_a_eliminar != NULL)
     {
-        log_debug(kernel_argumentos->logger, "Encontre el PID: %d en READY", pcb_a_eliminar->pid);
+        log_debug(kernel_argumentos->log_aux, "Encontre el PID: %d en READY", pcb_a_eliminar->pid);
         eliminar_proceso(pcb_a_eliminar, kernel_argumentos);
         pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
         return;
     }
 
-    log_debug(kernel_argumentos->logger, "Busco en PRIORIDAD");
+    log_debug(kernel_argumentos->log_aux, "Busco en PRIORIDAD");
     pcb_a_eliminar = buscar_pcb_en_cola(kernel_argumentos->colas.prioridad, pid);
     if(pcb_a_eliminar != NULL)
     {
-        log_debug(kernel_argumentos->logger, "Encontre el PID: %d en PRIORIDAD", pcb_a_eliminar->pid);
+        log_debug(kernel_argumentos->log_aux, "Encontre el PID: %d en PRIORIDAD", pcb_a_eliminar->pid);
         eliminar_proceso(pcb_a_eliminar, kernel_argumentos);
         pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
         return;
     }
 
-    log_debug(kernel_argumentos->logger, "Busco en NEW");
+    log_debug(kernel_argumentos->log_aux, "Busco en NEW");
     pcb_a_eliminar = buscar_pcb_en_cola(kernel_argumentos->colas.new, pid);
     if(pcb_a_eliminar != NULL)
     {
-        log_debug(kernel_argumentos->logger, "Encontre el PID: %d en NEW", pcb_a_eliminar->pid);
+        log_debug(kernel_argumentos->log_aux, "Encontre el PID: %d en NEW", pcb_a_eliminar->pid);
         eliminar_proceso(pcb_a_eliminar, kernel_argumentos);
         pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
         return;
     }
 
-    log_debug(kernel_argumentos->logger, "Busco en las colas de bloqueo");
+    log_debug(kernel_argumentos->log_aux, "Busco en las colas de bloqueo");
 
     t_list* colas_bloqueo = dictionary_elements(kernel_argumentos->colas.lista_block);
     int tamanio_lista = list_size(colas_bloqueo);
-    log_debug(kernel_argumentos->logger, "Tamanio de la lista: %d", tamanio_lista);
+    log_debug(kernel_argumentos->log_aux, "Tamanio de la lista: %d", tamanio_lista);
     int i = 0;
     int cola;
     char* nombre_recurso;
     while(i<tamanio_lista)
     {
         t_queue_block* cola_bloqueo = list_remove(colas_bloqueo, 0);
-        log_debug(kernel_argumentos->logger, "Busco en la lista de: %s", cola_bloqueo->identificador);
+        log_debug(kernel_argumentos->log_aux, "Busco en la lista de: %s", cola_bloqueo->identificador);
         if(!queue_is_empty(cola_bloqueo->block_queue))
         {
             pcb_candidato = buscar_pcb_en_cola(cola_bloqueo->block_queue, pid);
@@ -209,9 +212,10 @@ void finalizar_proceso(uint32_t pid, t_planificacion *kernel_argumentos){
             }
             cola = 0;
         }
-        list_add(colas_bloqueo, cola_bloqueo);
+        // list_add(colas_bloqueo, cola_bloqueo);
         i++;
     }
+    list_destroy(colas_bloqueo);
 
     if(pcb_a_eliminar != NULL)
     {
@@ -224,13 +228,13 @@ void finalizar_proceso(uint32_t pid, t_planificacion *kernel_argumentos){
             eliminar_proceso_recurso(pcb_a_eliminar, nombre_recurso, kernel_argumentos);
         }
         pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
-        log_warning(kernel_argumentos->logger, "Se desbloquea la planificacion");
+        // log_warning(kernel_argumentos->logger, "Se desbloquea la planificacion");
         return;
     }
 
-    log_debug(kernel_argumentos->logger, "No se encontro el proceso de PID: %d", pid);
+    log_debug(kernel_argumentos->log_aux, "No se encontro el proceso de PID: %d", pid);
     pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
-    log_warning(kernel_argumentos->logger, "Se desbloquea la planificacion");
+    // log_warning(kernel_argumentos->logger, "Se desbloquea la planificacion");
 }
 
 t_pcb *buscar_pcb_en_cola(t_queue* cola, uint32_t pid)
@@ -292,7 +296,7 @@ void eliminar_proceso_recurso(t_pcb* pcb, char* nombre_recurso, t_planificacion*
     t_list* lista_recursos_tomados = dictionary_get(kernel_argumentos->recursos_tomados, pid);
     
     int i = 0, tamanio = list_size(lista_recursos_tomados);
-    log_debug(kernel_argumentos->logger, "El proceso %s tenia tomados %d recursos", pid, tamanio);
+    log_debug(kernel_argumentos->log_aux, "El proceso %s tenia tomados %d recursos", pid, tamanio);
     while(i<tamanio)
     {
         char* recurso = list_remove(lista_recursos_tomados, 0);
@@ -301,12 +305,12 @@ void eliminar_proceso_recurso(t_pcb* pcb, char* nombre_recurso, t_planificacion*
         if(cola_recurso != NULL)
         {
             cola_recurso->cantidad_instancias++;
-            log_debug(kernel_argumentos->logger, "Instancias del recurso %s: %d", recurso, cola_recurso->cantidad_instancias);
+            log_debug(kernel_argumentos->log_aux, "Instancias del recurso %s: %d", recurso, cola_recurso->cantidad_instancias);
             procesar_desbloqueo_factible(recurso, kernel_argumentos);
         }
         else
         {
-            log_warning(kernel_argumentos->logger, "Obtuve un elemento t_queue_block nulo");
+            log_warning(kernel_argumentos->log_aux, "Obtuve un elemento t_queue_block nulo");
         }
 
         i++;
@@ -315,6 +319,7 @@ void eliminar_proceso_recurso(t_pcb* pcb, char* nombre_recurso, t_planificacion*
     log_info(kernel_argumentos->logger, "Finaliza el proceso %d - Motivo: INTERRUPTED_BY_USER", pcb->pid);
     mover_a_exit(pcb, kernel_argumentos);
     free(nombre_recurso);
+    free(pid);
 }
 
 // void borrar_recurso_eliminado_de_cola(t_queue_block* cola, char* pid)
@@ -333,10 +338,10 @@ void iniciar_planificacion(t_planificacion *kernel_argumentos){
     {
         kernel_argumentos->detener_planificacion = 0;
         sem_post(&kernel_argumentos->planificar);
-        log_debug(kernel_argumentos->logger, ">> Se inicia la planificacion...");
+        log_debug(kernel_argumentos->log_aux, ">> Se inicia la planificacion...");
         return;
     }
-    log_debug(kernel_argumentos->logger, ">> La planificacion ya estaba iniciada.");
+    log_debug(kernel_argumentos->log_aux, ">> La planificacion ya estaba iniciada.");
 }
 
 void detener_planificacion(t_planificacion *kernel_argumentos){
@@ -348,7 +353,7 @@ void multiprogramacion(char* valor, t_planificacion *kernel_argumentos){
     
     int valor_decimal = atoi(valor);
     kernel_argumentos->config.grado_multiprogramacion = valor_decimal;
-    log_debug(kernel_argumentos->logger, "Se cambia el grado de multiprogramacion a %d", valor_decimal);
+    log_debug(kernel_argumentos->log_aux, "Se cambia el grado de multiprogramacion a %d", valor_decimal);
 }
 
 void proceso_estado(t_planificacion *kernel_argumentos){
@@ -389,6 +394,7 @@ void logear_cola_estado(t_queue* cola, pthread_mutex_t mutex, char* nombre_cola,
             {
                 string_append(&lista, ", ");
             }
+            queue_push(cola, pcb);
             i++;
         }
         log_info(logger, "   %s: [%s]", nombre_cola, lista);
@@ -403,6 +409,7 @@ void logear_colas_block(t_planificacion* kernel_argumentos)
     
     if(kernel_argumentos->colas.cantidad_procesos_block == 0)
     {
+        pthread_mutex_unlock(&kernel_argumentos->colas.mutex_block);
         return;
     }
 
@@ -427,7 +434,7 @@ void logear_colas_block(t_planificacion* kernel_argumentos)
                 t_pcb* pcb = queue_pop(elemento->block_queue);
                 char* pid = string_itoa(pcb->pid);
                 string_append(&cadena_general, pid);
-                if(ultimo && (j != k - 1))
+                if(!ultimo && (j != k - 1))
                 {
                     string_append(&cadena_general, ", ");
                 }
@@ -443,7 +450,7 @@ void logear_colas_block(t_planificacion* kernel_argumentos)
                 t_pcb* pcb = list_get(elemento->block_dictionary, j);
                 char* pid = string_itoa(pcb->pid);
                 string_append(&cadena_general, pid);
-                if(ultimo && (j != k - 1))
+                if(!ultimo && (j != k - 1))
                 {
                     string_append(&cadena_general, ", ");
                 }

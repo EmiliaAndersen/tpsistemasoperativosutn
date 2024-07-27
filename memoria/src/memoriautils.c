@@ -5,7 +5,8 @@ int tam_memoria;
 t_list* tabla_pags; //tabla general
 void* memoria;
 t_bitarray* bitarray;
-t_bitarray* escrito;
+//t_bitarray* escrito;
+pthread_mutex_t mutex_tabla_pags;
 
 
 void escribir_en_mem_io(char* aescribir, t_dir_fisica* dir_fisica, int cant_direcciones,int tamanio, uint32_t pid ){
@@ -32,7 +33,7 @@ int desplazamiento = dir_fisica[0].desplazamiento;
 
             if (bytes_a_escribir > 0) {
                 memcpy((char*)memoria + (nro_frame * tam_pagina) + (i == 0 ? desplazamiento : 0), aescribir + offset, bytes_a_escribir);
-                bitarray_set_bit(escrito, nro_frame);
+                //bitarray_set_bit(escrito, nro_frame);
 
                 bytes_escritos += bytes_a_escribir;
                 offset += bytes_a_escribir;
@@ -43,7 +44,7 @@ int desplazamiento = dir_fisica[0].desplazamiento;
             }
         }
 
-        log_info(memoria_log, "PID: %u - Accion:ESCRIBIR - Direccion fisica: %d - Tamaño %d", pid, dir_fisica[0].nro_frame * tam_pagina + desplazamiento, tamanio);
+        log_info(memoria_log, "PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: <%d> - Tamaño: <%d>", pid, dir_fisica[0].nro_frame * tam_pagina + desplazamiento, tamanio);
     } else {
         log_error(memoria_log, "No puede escribir");
     }
@@ -60,22 +61,22 @@ void escribir_en_mem_cpu(char* aescribir, t_dir_fisica* dir_fisica, int tamanio 
     if (tamanio == 1){ //uint8
         uint8_t escribir = (uint8_t) atoi(aescribir);
         memcpy((char*)memoria + (nro_frame * tam_pagina) + desplazamiento , &escribir, tam_bytes); 
-        bitarray_set_bit(escrito, nro_frame);
-        log_info(memoria_log, "PID: %u - Accion:ESCRIBIR - Direccion fisica: %d - Tamaño %d",pid ,nro_frame+desplazamiento,tam_bytes);
+        //bitarray_set_bit(escrito, nro_frame);
+        log_info(memoria_log, "PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: <%d> - Tamaño <%d>",pid ,nro_frame+desplazamiento,tam_bytes);
 
     }
     if(tamanio ==4){//uint32
         uint32_t escribir = (uint32_t)atoi(aescribir);
         memcpy((char*)memoria + (nro_frame * tam_pagina) + desplazamiento , &escribir, tam_bytes);
-        log_info(memoria_log, "PID: %u - Accion:ESCRIBIR - Direccion fisica: %d - Tamaño %d",pid ,nro_frame+desplazamiento,tam_bytes);
-        bitarray_set_bit(escrito, nro_frame);
+        log_info(memoria_log, "PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: <%d> - Tamaño: <%d>",pid ,nro_frame+desplazamiento,tam_bytes);
+       // bitarray_set_bit(escrito, nro_frame);
 
     }
     if(tamanio ==2){//uint32
         uint16_t escribir = (uint16_t)atoi(aescribir);
         memcpy((char*)memoria + (nro_frame * tam_pagina) + desplazamiento , &escribir, tam_bytes);
-        log_info(memoria_log, "PID: %u - Accion:ESCRIBIR - Direccion fisica: %d - Tamaño %d",pid ,nro_frame+desplazamiento,tam_bytes);
-        bitarray_set_bit(escrito, nro_frame);
+        log_info(memoria_log, "PID: <%u> - Accion: <ESCRIBIR> - Direccion fisica: <%d> - Tamaño: <%d>",pid ,nro_frame+desplazamiento,tam_bytes);
+        //bitarray_set_bit(escrito, nro_frame);
 
     }
     }
@@ -83,55 +84,6 @@ void escribir_en_mem_cpu(char* aescribir, t_dir_fisica* dir_fisica, int tamanio 
     {
         log_error(memoria_log, "No puede escribir"); 
     }
-}
-
-char** dividir_str_segun_pags(char* str, int cantpags, int desplazamiento, int resto){
-
-    int contador=0;
-    int pos=0;
-    char** arr=(char**)malloc(sizeof(char*)*(cantpags+resto));
-
-    if(resto==0 && desplazamiento == 0){
-        while(contador<cantpags){
-            char* substring= decstring(str,pos,pos+tam_pagina-1);
-            arr[contador]=substring;
-            pos = pos + tam_pagina;
-            contador++;
-        }
-
-    }
-    if(resto!=0 && desplazamiento == 0){
-       while(contador<cantpags-1){
-        char* substring= decstring(str,pos,pos+tam_pagina-1);
-        arr[contador]=substring;
-        pos = pos + tam_pagina ;
-        contador++;
-        } 
-        char* subs=decstring(str,pos,strlen(str)-1);
-        arr[contador]=subs;
-    }
-    if(desplazamiento != 0 ){
-
-        //PRIMER PAG
-        int tam_primera = tam_pagina-desplazamiento;
-        char* substring= decstring(str,pos,tam_primera-1); 
-        pos = tam_primera; ///PARA QUE SALGA D LA POS
-        arr[contador]=substring;
-        contador++;
- 
-        while(contador<cantpags-1){
-        char* substring= decstring(str,pos,pos+tam_pagina);
-        arr[contador]=substring;
-        pos = pos + tam_pagina +1;
-        contador++;
-        }    
-        //ULTIMA PAG
-        char* subs=decstring(str,pos,strlen(str)-1);
-
-        arr[contador]=subs;
-    }
-
-    return arr;
 }
 
 char* leer_en_mem_cpu(int tamanio, t_dir_fisica* dir_fisica, uint32_t pid){
@@ -147,21 +99,21 @@ char* leer_en_mem_cpu(int tamanio, t_dir_fisica* dir_fisica, uint32_t pid){
         uint8_t leo;
         memcpy(&leo, espacio_de_mem, tamanio);
         leido = int_to_char(leo);
-         log_info(memoria_log, "PID: %u - Accion:LEER - Direccion fisica: %d - Tamaño %d",pid ,nro_frame+desplazamiento,tamanio);
+         log_info(memoria_log, "PID: <%u> - Accion: <LEER> - Direccion fisica: <%d> - Tamaño: <%d>",pid ,nro_frame+desplazamiento,tamanio);
     }
     if(tamanio ==4){
        
         uint32_t leo;
         memcpy(&leo, espacio_de_mem, tamanio);
         leido = int_to_char(leo);
-         log_info(memoria_log, "PID: %u - Accion:LEER - Direccion fisica: %d - Tamaño %d",pid ,nro_frame+desplazamiento,tamanio);
+         log_info(memoria_log, "PID: <%u> - Accion: <LEER> - Direccion fisica: <%d> - Tamaño: <%d>",pid ,nro_frame+desplazamiento,tamanio);
     }
     if(tamanio ==2){
 
         uint16_t leo;
         memcpy(&leo, espacio_de_mem, tamanio);
         leido = int_to_char(leo);
-        log_info(memoria_log, "PID: %u - Accion:LEER - Direccion fisica: %d - Tamaño %d",pid ,nro_frame+desplazamiento,tamanio);
+        log_info(memoria_log, "PID: <%u> - Accion: <LEER> - Direccion fisica: <%d> - Tamaño: <%d>",pid ,nro_frame+desplazamiento,tamanio);
     }
     
     return leido;
@@ -198,17 +150,19 @@ char* leer_en_mem_io(int tamanio, t_dir_fisica* dir_fisica, int cant_direcciones
             temp[bytes_a_leer] = '\0';
             string_append(&leido, temp);
             free(temp);
-
+    
             bytes_leidos += bytes_a_leer;
             offset += bytes_a_leer;
+
 
             if (bytes_leidos >= tamanio) {
                 break;
             }
         }
+
+        log_info(memoria_log, "PID: <%u> - Accion: <LEER> - Direccion fisica: <%d> - Tamaño: <%d>",pid ,nro_frame  + (i == 0 ? desplazamiento : 0),bytes_a_leer);
     }
 
-    log_info(memoria_log, "PID: %u - Accion: LEER - Tamaño: %d", pid, tamanio);
     return leido;
 }
 
@@ -260,14 +214,14 @@ int frame_sig_leer( uint32_t pid, int frame){
     t_tabla* tabla_pid = buscar_por_pid_return(pid);
     bool encontrado = false;
     for (int i = frame+1; i < bitarray->size; i++) {
-        if (bitarray_test_bit(bitarray, i) == 1 && bitarray_test_bit(escrito, i)==1) {
+        if (bitarray_test_bit(bitarray, i) == 1 /*&& bitarray_test_bit(escrito, i)==1*/) {
             for(int x = 0; x< list_size(tabla_pid->tabla); x++){
                 if(list_get(tabla_pid->tabla,x) == i){
                     frame_siguiente = i;
                     encontrado = true;
                     break;
                 }  
-                    }
+            }
         }
         if (encontrado) {
                 break;
@@ -275,7 +229,7 @@ int frame_sig_leer( uint32_t pid, int frame){
     }
     if(frame_siguiente==-1){ // si hay libres pero por arriba del frame
     for (int i = 0; i < frame; i++) {
-        if (bitarray_test_bit(bitarray, i) == 1 && bitarray_test_bit(escrito, i)==1) {
+        if (bitarray_test_bit(bitarray, i) == 1 /*&& bitarray_test_bit(escrito, i)==1*/) {
             for(int x = 0; x< list_size(tabla_pid->tabla); x++){
                 if(list_get(tabla_pid->tabla,x) == i){
                     frame_siguiente = i;
@@ -288,21 +242,8 @@ int frame_sig_leer( uint32_t pid, int frame){
                 break;
             }
     }
-    }/*
-   for (int i = frame+1; i < bitarray->size; i++) {
-        if (bitarray_test_bit(bitarray, i) == 1 ) {
-            for(int x = frame+1; x< list_size(tabla_pid->tabla); x++){
-                if(list_get(tabla_pid->tabla,x) == i){
-                    frame_siguiente = i;
-                    encontrado = true;
-                    break;
-                }  
-                    }
-                }
-            if (encontrado) {
-                break;
-            }
-    }*/
+    }
+
     return frame_siguiente;
 }
 
@@ -356,32 +297,39 @@ bool puede_escribir(uint32_t pid, int frame,int cant_pags ){
 
 t_tabla* buscar_por_pid_return(uint32_t pid) {
 
+    pthread_mutex_lock(&mutex_tabla_pags);
     if(tabla_pags != NULL){
     t_link_element* current = tabla_pags->head;
     while (current != NULL) {
         t_tabla* current_tabla = (t_tabla*)current->data;
         if (current_tabla->pid == pid) {
+            pthread_mutex_unlock(&mutex_tabla_pags);
             return current_tabla; 
         }
         current = current->next;
     }
     }
+    pthread_mutex_unlock(&mutex_tabla_pags);
     return NULL; 
 }
 bool buscar_por_pid_bool(uint32_t pid) {
+    pthread_mutex_lock(&mutex_tabla_pags);
     t_link_element* current = tabla_pags->head;
     while (current != NULL) {
         t_tabla* current_tabla = (t_tabla*)current->data;
         if (current_tabla->pid == pid) {
+            pthread_mutex_unlock(&mutex_tabla_pags);
             return true;
         }
         current = current->next;
     }
+    pthread_mutex_unlock(&mutex_tabla_pags);
     return false; 
 }
 
 t_tabla* buscar_por_pid(uint32_t pid)
 {
+    pthread_mutex_lock(&mutex_tabla_pags);
     int i = 0, tamanio = list_size(tabla_pags);
     t_tabla* ret = NULL;
     while(i<tamanio)
@@ -394,12 +342,13 @@ t_tabla* buscar_por_pid(uint32_t pid)
         list_add(tabla_pags, candidato);
         i++;
     }
-
+    pthread_mutex_unlock(&mutex_tabla_pags);
     return ret;
 }
 
 t_tabla* eliminar_tabla_pid(uint32_t pid)
 {
+    pthread_mutex_lock(&mutex_tabla_pags);
     int i = 0, tamanio = list_size(tabla_pags);
     t_tabla* ret = NULL;
     while(i<tamanio)
@@ -415,35 +364,8 @@ t_tabla* eliminar_tabla_pid(uint32_t pid)
         }
         i++;
     }
-
+    pthread_mutex_unlock(&mutex_tabla_pags);
     return ret;
-}
-
-char* cortar_string(char* cadena, int longitud){
-    char* nueva_cadena = (char*)malloc((longitud + 1) * sizeof(char));
-    if (nueva_cadena == NULL) {
-        fprintf(stderr, "Error: No se pudo asignar memoria.\n");
-        exit(EXIT_FAILURE);
-    }
-    strncpy(nueva_cadena, cadena, longitud);
-    nueva_cadena[longitud] = '\0';
-    return nueva_cadena;
-}
-
-char* cortar_string_final(char* cadena, int longitud) {
-    int longitud_cadena = (int) strlen(cadena);
-    int inicio_subcadena = longitud_cadena - longitud;
-
-    char* subcadena = (char*)malloc((longitud + 1) * sizeof(char));
-    if (subcadena == NULL) {
-        perror("Error al reservar memoria para el substring");
-        exit(EXIT_FAILURE);
-    }
-
-    strncpy(subcadena, cadena + inicio_subcadena, longitud);
-    subcadena[longitud] = '\0';
-
-    return subcadena;
 }
 
 int buscar_frame_disp(t_bitarray* bit, int tam ){

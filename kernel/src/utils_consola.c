@@ -7,7 +7,7 @@ t_pcb *crear_nuevo_pcb(uint32_t *pid_contador, t_planificacion *kernel_argumento
 
     if (nuevo_pcb == NULL)
     {
-        log_warning(kernel_argumentos->logger, "Se creo un PCB NULL\n");
+        log_warning(kernel_argumentos->log_aux, "Se creo un PCB NULL\n");
         return NULL;
     }
 
@@ -17,7 +17,7 @@ t_pcb *crear_nuevo_pcb(uint32_t *pid_contador, t_planificacion *kernel_argumento
     nuevo_pcb->estado = NEW;
     nuevo_pcb->motivo_desalojo = 0;
 
-    log_info(kernel_argumentos->logger, "Se crea el proceso con %d en NEW", nuevo_pcb->pid);
+    // log_info(kernel_argumentos->log_aux, "Se crea el proceso con %d en NEW", nuevo_pcb->pid);
     (*pid_contador)++;
     
     return nuevo_pcb;

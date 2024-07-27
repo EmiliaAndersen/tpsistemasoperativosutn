@@ -82,7 +82,7 @@ instruccion_params* deserializar_io_fs_truncate_con_interfaz(t_buffer_ins* buffe
 
 instruccion_params* deserializar_io_fs_write_read_con_interfaz(t_buffer_ins* buffer) {
     instruccion_params* parametros = malloc(sizeof(instruccion_params));
-    parametros->registro_direccion = malloc(sizeof(t_dir_fisica));
+    // parametros->registro_direccion = malloc(sizeof(t_dir_fisica));
     uint32_t offset = 0;
     uint32_t interfaz_len;
     memcpy(&interfaz_len, buffer->stream + offset, sizeof(uint32_t));

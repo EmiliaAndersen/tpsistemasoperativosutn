@@ -33,7 +33,7 @@ typedef struct
 void atender_cliente(void* void_args);
 int server_escuchar(void *arg);
 t_queue_block* buscar_interfaz_por_socket(t_planificacion* kernel_argumentos, int socket);
-
+void eliminar_procesos_bloqueados_por_interfaz(t_queue_block* interfaz_desconectada, t_planificacion *kernel_argumentos);
 
 
 #endif

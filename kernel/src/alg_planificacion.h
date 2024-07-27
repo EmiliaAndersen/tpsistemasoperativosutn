@@ -46,7 +46,7 @@ void planificador_corto_plazo(t_tipo_planificacion algoritmo, t_planificacion *k
 void planificador_largo_plazo(t_planificacion *kernel_argumentos);
 
 
-t_planificacion *inicializar_t_planificacion(t_config *kernel_config, t_log *kernel_log);
+t_planificacion *inicializar_t_planificacion(t_config *kernel_config, t_log *kernel_log, t_log *log_aux);
 t_tipo_planificacion obtener_algoritmo_planificador(char* algoritmo);
 void inicializar_lista_recursos(t_planificacion *planificador, t_config *kernel_config);
 void inicializar_config_kernel(t_planificacion *planificador, t_config *kernel_config);

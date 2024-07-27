@@ -34,7 +34,7 @@ t_dir_fisica* mmu(int dir_logica, uint32_t pid){
         if (frame != -1) {  // HIT
             manejar_tlb_hit(pid, numero_pagina);
         } else {  // MISS
-            log_info(cpu_log, "TLB Miss: PID: <%i>  - Pagina: <%i>", pid, numero_pagina);
+            log_info(cpu_log, "PID: <%u> - TLB MISS - Pagina: <%d>", pid, numero_pagina);
             frame = manejar_tlb_miss(pid, numero_pagina);
             if (string_equals_ignore_case(algoritmo, "FIFO")) {
                 remplazo_fifo(pid, numero_pagina, frame);
@@ -56,13 +56,13 @@ int manejar_tlb_miss(uint32_t pid, int numero_pagina) {
     enviar_a_mem(conexion_memoria_cpu, mensaje, FRAME);
 
     int frame = recibir_frame(conexion_memoria_cpu);
-    log_info(cpu_log, "Obtener Marco: PID: <%i> - Página: <%i> - Marco: <%i>", pid, numero_pagina, frame);
+    log_info(cpu_log, "PID: <%u> - OBTENER MARCO - Pagina: <%d> - Marco: <%d>", pid, numero_pagina, frame);
     free(mensaje);
     return frame;
 }
 
 void manejar_tlb_hit(uint32_t pid, int numero_pagina) {
-    log_info(cpu_log, "TLB Hit: PID: <%i> - Página: <%i>", pid, numero_pagina);
+    log_info(cpu_log, "PID: <%u> - TLB HIT - Pagina: <%d>", pid, numero_pagina);
 }
 
 

@@ -65,6 +65,7 @@ typedef enum {
 typedef struct
 {
     t_log *logger;
+    t_log *log_aux;
     t_planificador_colas colas;
     t_planificador_config config;
     sem_t planificar;

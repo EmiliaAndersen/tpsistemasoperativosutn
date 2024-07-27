@@ -179,18 +179,30 @@ void enviar_pcb(t_pcb* pcb, int socket_cliente){
     // agregar_a_paquete(paquete, &(pcb->recursos_waiteados), strlen(pcb->recursos_waiteados));
     enviar_paquete(paquete, socket_cliente);
     eliminar_paquete(paquete);
-    printf("Paquete enviado a socket: %d\n", socket_cliente);
+    // printf("Paquete enviado a socket: %d\n", socket_cliente);
 }
 
 t_pcb* recibir_pcb(int socket_cliente) {
     t_pcb* pcb = malloc(sizeof(t_pcb));
     t_list* valores_paquete = recibir_paquete(socket_cliente);
     // pcb->registros = malloc(sizeof(cpu_registros));
-    pcb->pid = *((uint32_t*)list_get(valores_paquete, 0));
-    pcb->quantum = *((int*)list_get(valores_paquete, 1));
-    pcb->registros = (cpu_registros*)list_get(valores_paquete, 2);
-    pcb->estado = *((t_proceso_estado*)list_get(valores_paquete, 3));
-    pcb->motivo_desalojo = *((int*)list_get(valores_paquete, 4));
+    uint32_t* pid_ptr = (uint32_t*)list_remove(valores_paquete, 0);
+    pcb->pid = *pid_ptr;
+    free(pid_ptr);
+
+    int* quantum_ptr = (int*)list_remove(valores_paquete, 0);
+    pcb->quantum = *quantum_ptr;
+    free(quantum_ptr);
+
+    pcb->registros = (cpu_registros*)list_remove(valores_paquete, 0);
+    
+    t_proceso_estado *estado_ptr = (t_proceso_estado*)list_remove(valores_paquete, 0);
+    pcb->estado = *estado_ptr;
+    free(estado_ptr);
+
+    int* desalojo_ptr = (int*)list_remove(valores_paquete, 0);
+    pcb->motivo_desalojo = *desalojo_ptr;
+    free(desalojo_ptr);
 
     list_destroy(valores_paquete);
 

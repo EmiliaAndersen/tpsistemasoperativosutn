@@ -5,18 +5,18 @@ void* hilo_planificador(void *args)
     t_planificacion *kernel_argumentos = (t_planificacion*) args;
 
     t_tipo_planificacion algoritmo_planificador = obtener_algoritmo_planificador(kernel_argumentos->config.algoritmo_planificador);
-    log_debug(kernel_argumentos->logger, "Algoritmo planificador: %d", algoritmo_planificador);
+    log_debug(kernel_argumentos->log_aux, "Algoritmo planificador: %d", algoritmo_planificador);
     kernel_argumentos->algo_planning = algoritmo_planificador;
     while(1)
     {
         // Espero a que me soliciten planificar
         sem_wait(&kernel_argumentos->planificar);
-        log_debug(kernel_argumentos->logger, "Planificando...");
+        log_debug(kernel_argumentos->log_aux, "Planificando...");
 
         // Si se ejecuto DETENER_PLANIFICACION, no planifico por mas que me soliciten hacerlo
         if(kernel_argumentos->detener_planificacion)
         {
-            log_debug(kernel_argumentos->logger, "Planificacion detenida.");
+            log_debug(kernel_argumentos->log_aux, "Planificacion detenida.");
             pthread_mutex_unlock(&kernel_argumentos->planning_mutex);
             continue;
         }
@@ -39,7 +39,7 @@ void loguear_recursos(t_planificacion* kernel_argumentos)
     while(i<tamanio)
     {
         t_queue_block* recurso = list_remove(lista_recursos, 0);
-        log_debug(kernel_argumentos->logger, "El recurso %s tiene %d instancias disponibles", recurso->identificador, recurso->cantidad_instancias);
+        log_debug(kernel_argumentos->log_aux, "El recurso %s tiene %d instancias disponibles", recurso->identificador, recurso->cantidad_instancias);
         list_add(lista_recursos, recurso);
         i++;
     }
@@ -55,7 +55,7 @@ void fifo(t_planificacion *kernel_argumentos)
     }
     if(kernel_argumentos->colas.ready == 0)
     {
-        log_debug(kernel_argumentos->logger, "No hay mas procesos para enviar a EXEC. Se detiene la planificacion");
+        log_debug(kernel_argumentos->log_aux, "No hay mas procesos para enviar a EXEC. Se detiene la planificacion");
         kernel_argumentos->detener_planificacion = 1;
     }
     return;
@@ -72,7 +72,7 @@ void round_robin(t_planificacion *kernel_argumentos)
     }
     if(kernel_argumentos->colas.ready == 0)
     {
-        log_debug(kernel_argumentos->logger, "No hay mas procesos para enviar a EXEC. Se detiene la planificacion");
+        log_debug(kernel_argumentos->log_aux, "No hay mas procesos para enviar a EXEC. Se detiene la planificacion");
         kernel_argumentos->detener_planificacion = 1;
     }
     return;
@@ -102,7 +102,7 @@ void virtual_round_robin(t_planificacion *kernel_argumentos)
     }
     if(kernel_argumentos->colas.ready == 0)
     {
-        log_debug(kernel_argumentos->logger, "No hay mas procesos para enviar a EXEC. Se detiene la planificacion");
+        log_debug(kernel_argumentos->log_aux, "No hay mas procesos para enviar a EXEC. Se detiene la planificacion");
         kernel_argumentos->detener_planificacion = 1;
     }
     return;
@@ -135,11 +135,11 @@ void enviar_interrupcion(union sigval sv)
     {
         t_pcb* pcb_actual = queue_peek(kernel_argumentos->colas.exec);
         enviar_int_a_interrupt(kernel_argumentos->socket_cpu_interrupt, pcb_actual->pid);
-        log_debug(kernel_argumentos->logger, "Interrupcion al PID: %d enviada.", pcb_actual->pid);
+        log_debug(kernel_argumentos->log_aux, "Interrupcion al PID: %d enviada.", pcb_actual->pid);
         return;
     }
     
-    log_debug(kernel_argumentos->logger, "No se envia interrupcion al no haber nada en EXEC");
+    // log_debug(kernel_argumentos->logger, "No se envia interrupcion al no haber nada en EXEC");
 }
 
 void planificador_planificar(t_planificacion *kernel_argumentos)
@@ -154,7 +154,9 @@ bool planificador_recepcion_pcb(t_pcb *pcb_desalojado, t_planificacion *kernel_a
 
     if(queue_is_empty(kernel_argumentos->colas.exec))
     {
-        log_debug(kernel_argumentos->logger, "El proceso recibido fue terminado por el usuario");
+        log_debug(kernel_argumentos->log_aux, "El proceso recibido fue terminado por el usuario");
+        free(pcb_desalojado->registros);
+        free(pcb_desalojado);
         return true;
     }
 
@@ -162,12 +164,12 @@ bool planificador_recepcion_pcb(t_pcb *pcb_desalojado, t_planificacion *kernel_a
     t_pcb* pcb_outdated = queue_pop(kernel_argumentos->colas.exec);
     pthread_mutex_unlock(&kernel_argumentos->colas.mutex_exec);
 
-    log_debug(kernel_argumentos->logger, "PID recibido: %d", pcb_desalojado->pid);
-    log_debug(kernel_argumentos->logger, "PID que tengo en EXEC: %d", pcb_outdated->pid);
+    log_debug(kernel_argumentos->log_aux, "PID recibido: %d", pcb_desalojado->pid);
+    log_debug(kernel_argumentos->log_aux, "PID que tengo en EXEC: %d", pcb_outdated->pid);
     
     if(pcb_desalojado->pid != pcb_outdated->pid)
     {   
-        log_error(kernel_argumentos->logger, "Discordancia entre el pcb en EXEC y el ejecutado por CPU.");
+        log_error(kernel_argumentos->log_aux, "Discordancia entre el pcb en EXEC y el ejecutado por CPU.");
         return true;
     }
 
@@ -203,12 +205,12 @@ bool planificador_recepcion_pcb(t_pcb *pcb_desalojado, t_planificacion *kernel_a
         if(kernel_argumentos->algo_planning == VRR)
         {
             pcb_desalojado->quantum = milisegundos_restantes;
-            log_debug(kernel_argumentos->logger, "Milisegundos restantes: %d", pcb_desalojado->quantum);
+            log_debug(kernel_argumentos->log_aux, "Milisegundos restantes: %d", pcb_desalojado->quantum);
         }
         // Recibir los parametros del io_block
         t_instruccion_params_opcode parametros_solicitud;
         parametros_solicitud = recibir_solicitud_cpu(kernel_argumentos->socket_cpu_dispatch, pcb_desalojado, kernel_argumentos);
-        log_debug(kernel_argumentos->logger, "Solicitud recibida: %s, %d", parametros_solicitud.params->interfaz, parametros_solicitud.params->params.io_gen_sleep.unidades_trabajo);
+        // log_debug(kernel_argumentos->log_aux, "Solicitud recibida: %s, %d", parametros_solicitud.params->interfaz, parametros_solicitud.params->params.io_gen_sleep.unidades_trabajo);
 
         validar_peticion(parametros_solicitud.params, pcb_desalojado, parametros_solicitud.opcode, kernel_argumentos);
         // mover_a_block(kernel_argumentos, pcb_desalojado, nombre_interfaz);
@@ -225,7 +227,7 @@ bool planificador_recepcion_pcb(t_pcb *pcb_desalojado, t_planificacion *kernel_a
 
         recibir_operacion(kernel_argumentos->socket_cpu_dispatch);
         char* recurso_solicitado = recibir_mensaje(kernel_argumentos->socket_cpu_dispatch, kernel_argumentos->logger);
-        log_debug(kernel_argumentos->logger, "Se recibe una solicitud de WAIT al recurso: %s", recurso_solicitado);
+        log_debug(kernel_argumentos->log_aux, "Se recibe una solicitud de WAIT al recurso: %s", recurso_solicitado);
         
         return administrador_recursos_wait(pcb_desalojado, recurso_solicitado, milisegundos_restantes, kernel_argumentos);
     }
@@ -239,7 +241,7 @@ bool planificador_recepcion_pcb(t_pcb *pcb_desalojado, t_planificacion *kernel_a
         
         recibir_operacion(kernel_argumentos->socket_cpu_dispatch);
         char* recurso_solicitado = recibir_mensaje(kernel_argumentos->socket_cpu_dispatch, kernel_argumentos->logger);
-        log_debug(kernel_argumentos->logger, "Se recibe una solicitud de SIGNAL al recurso: %s", recurso_solicitado);
+        log_debug(kernel_argumentos->log_aux, "Se recibe una solicitud de SIGNAL al recurso: %s", recurso_solicitado);
         
         return administrador_recursos_signal(pcb_desalojado, recurso_solicitado, milisegundos_restantes, kernel_argumentos);
     }
@@ -301,11 +303,12 @@ void planificador_largo_plazo(t_planificacion *kernel_argumentos)
     }
 }
 
-t_planificacion *inicializar_t_planificacion(t_config *kernel_config, t_log *kernel_log)
+t_planificacion *inicializar_t_planificacion(t_config *kernel_config, t_log *kernel_log, t_log *log_aux)
 {
    t_planificacion *planificador = malloc(sizeof(t_planificacion));
     
     planificador->logger = kernel_log;
+    planificador->log_aux = log_aux;
 
     planificador->colas.new = queue_create();
     planificador->colas.ready = queue_create();
@@ -391,7 +394,7 @@ void inicializar_lista_recursos(t_planificacion *planificador, t_config *kernel_
         block_queue->identificador = string_duplicate(array_nombre_recursos[i]);
         block_queue->cantidad_instancias = atoi(array_instancias_recursos[i]);
         block_queue->socket_interfaz = 0;
-        log_debug(planificador->logger, "Recurso agregado. Identificador: %s, Cantidad de instancias: %d", block_queue->identificador, block_queue->cantidad_instancias);
+        log_debug(planificador->log_aux, "Recurso agregado. Identificador: %s, Cantidad de instancias: %d", block_queue->identificador, block_queue->cantidad_instancias);
 
         dictionary_put(planificador->colas.lista_block, block_queue->identificador, block_queue);
         //free(block_queue); // Este free capaz no tenga que estar aca, sino al final de la ejecucion
@@ -432,11 +435,12 @@ bool administrador_recursos_wait(t_pcb *pcb_solicitante, char* nombre_recurso, i
         // El recurso no existe. Mando el proceso a EXIT y habilito la replanificacion
         log_info(kernel_argumentos->logger, "Finaliza el proceso %d - Motivo: INVALID_RESOURCE", pcb_solicitante->pid);
         mover_a_exit(pcb_solicitante, kernel_argumentos);
+        free(nombre_recurso);
         return true;
     }
 
     recurso->cantidad_instancias--;
-    log_debug(kernel_argumentos->logger, "Cantidad de instancias restantes para el recurso %s: %d", nombre_recurso, recurso->cantidad_instancias);
+    log_debug(kernel_argumentos->log_aux, "Cantidad de instancias restantes para el recurso %s: %d", nombre_recurso, recurso->cantidad_instancias);
 
     if(recurso->cantidad_instancias >= 0)
     {
@@ -445,7 +449,7 @@ bool administrador_recursos_wait(t_pcb *pcb_solicitante, char* nombre_recurso, i
         queue_push(kernel_argumentos->colas.exec, pcb_solicitante);
         pthread_mutex_unlock(&kernel_argumentos->colas.mutex_exec);
 
-        log_debug(kernel_argumentos->logger, "Se devuelve el PID: %d a cpu por haber solicitado un recurso disponible.", pcb_solicitante->pid);
+        log_debug(kernel_argumentos->log_aux, "Se devuelve el PID: %d a cpu por haber solicitado un recurso disponible.", pcb_solicitante->pid);
 
         if(kernel_argumentos->algo_planning != FIFO)
         {
@@ -479,13 +483,14 @@ bool administrador_recursos_signal(t_pcb *pcb_desalojado, char* recurso_solicita
     // Si existe, se le suma 1 al indice correspondiente y se lo devuelve a EXEC.
     // Si hay procesos esperando, se mueve uno de BLOCK a READY
     t_queue_block *recurso = dictionary_get(kernel_argumentos->colas.lista_block, recurso_solicitado);
-    log_debug(kernel_argumentos->logger, "Recurso obtenido del diccionario: %s. Se procesa un SIGNAL", recurso->identificador);
+    log_debug(kernel_argumentos->log_aux, "Recurso obtenido del diccionario: %s. Se procesa un SIGNAL", recurso->identificador);
 
     if(recurso == NULL)
     {
         // El recurso no existe. Mando el proceso a EXIT y habilito la replanificacion
         log_info(kernel_argumentos->logger, "Finaliza el proceso %d - Motivo: INVALID_RESOURCE", pcb_desalojado->pid);
         mover_a_exit(pcb_desalojado, kernel_argumentos);
+        free(recurso_solicitado);
         return true;
     }
 
@@ -493,7 +498,7 @@ bool administrador_recursos_signal(t_pcb *pcb_desalojado, char* recurso_solicita
     eliminar_recurso_de_lista_global(pcb_desalojado->pid, recurso_solicitado, kernel_argumentos);
 
     procesar_desbloqueo_factible(recurso_solicitado, kernel_argumentos);
-    log_debug(kernel_argumentos->logger, "Desbloqueo procesado.");
+    log_debug(kernel_argumentos->log_aux, "Desbloqueo procesado.");
 
     pthread_mutex_lock(&kernel_argumentos->colas.mutex_exec);
     queue_push(kernel_argumentos->colas.exec, pcb_desalojado);
@@ -531,18 +536,16 @@ void eliminar_recurso_de_lista_global(uint32_t pid, char* recurso_afectado, t_pl
     if(lista_proceso != NULL)
     {
         int i = 0, tamanio = list_size(lista_proceso);
-        printf("Tamanio de la lista: %d\n", tamanio);
         char*  nombre_recurso;
         while(i<tamanio)
         {
-            printf("i=%d\n", i);
             nombre_recurso = list_remove(lista_proceso, 0);
             
-            printf("Recurso: %s\n", nombre_recurso);
             if(string_equals_ignore_case(nombre_recurso, recurso_afectado))
             {
-                log_debug(kernel_argumentos->logger, "%s liberado de la lista global para el proceso %d!", nombre_recurso, pid);
+                log_debug(kernel_argumentos->log_aux, "%s liberado de la lista global para el proceso %d!", nombre_recurso, pid);
                 free(nombre_recurso);
+                free(pid_proceso);
                 return;
             }
             else
@@ -559,25 +562,26 @@ void eliminar_recurso_de_lista_global(uint32_t pid, char* recurso_afectado, t_pl
 void procesar_desbloqueo_factible(char* recurso_solicitado, t_planificacion *kernel_argumentos)
 {
     t_queue_block *recurso = dictionary_get(kernel_argumentos->colas.lista_block, recurso_solicitado);
-    log_debug(kernel_argumentos->logger, "Recurso obtenido del diccionario: %s", recurso->identificador);
+    free(recurso_solicitado);
+    log_debug(kernel_argumentos->log_aux, "Recurso obtenido del diccionario: %s", recurso->identificador);
 
     if(!list_is_empty(recurso->block_dictionary))
     {
         int tamanio = list_size(recurso->block_dictionary);
-        log_debug(kernel_argumentos->logger, "Tamanio de la lista: %d", tamanio);
+        // log_debug(kernel_argumentos->log_aux, "Tamanio de la lista: %d", tamanio);
         t_pcb *pcb_desbloqueado = list_remove(recurso->block_dictionary, 0);
-        log_debug(kernel_argumentos->logger, "Obtuve un PCB de PID: %d", pcb_desbloqueado->pid);
+        // log_debug(kernel_argumentos->log_aux, "Obtuve un PCB de PID: %d", pcb_desbloqueado->pid);
         
         mover_a_ready(pcb_desbloqueado, kernel_argumentos);
         
         kernel_argumentos->colas.cantidad_procesos_block--;
-        log_debug(kernel_argumentos->logger, "Cantidad de procesos en block: %d", kernel_argumentos->colas.cantidad_procesos_block);
+        // log_debug(kernel_argumentos->log_aux, "Cantidad de procesos en block: %d", kernel_argumentos->colas.cantidad_procesos_block);
         // recurso->cantidad_instancias--;
-        log_debug(kernel_argumentos->logger, "Cantidad de instancias disponibles para el recurso %s: %d", recurso->identificador, recurso->cantidad_instancias);
+        // log_debug(kernel_argumentos->log_aux, "Cantidad de instancias disponibles para el recurso %s: %d", recurso->identificador, recurso->cantidad_instancias);
         return;
     }
 
-    log_debug(kernel_argumentos->logger, "No hay procesos bloqueados por el recurso: %s", recurso->identificador);
+    log_debug(kernel_argumentos->log_aux, "No hay procesos bloqueados por el recurso: %s", recurso->identificador);
 }
 
 // -------- ADMINISTRACION DE INTERFACES --------
@@ -586,7 +590,7 @@ void validar_peticion(instruccion_params* parametros, t_pcb* pcb, int codigo_op,
 
     if(dictionary_is_empty(kernel_argumentos->colas.lista_block))
     {
-        log_warning(kernel_argumentos->logger, "No hay interfaces concetadas.");
+        log_warning(kernel_argumentos->log_aux, "No hay interfaces concetadas.");
         pcb->estado = EXIT;
         queue_push(kernel_argumentos->colas.exit, pcb);
         log_info(kernel_argumentos->logger, "PID: %d - Estado anterior: EXEC - Estado actual: EXIT", pcb->pid);
@@ -607,13 +611,13 @@ void validar_peticion(instruccion_params* parametros, t_pcb* pcb, int codigo_op,
     if(queue_is_empty(interfaz_solicitada->block_queue))
     {
         enviar_instruccion_a_interfaz(interfaz_solicitada, parametros, codigo_op, pcb->pid);
-        log_debug(kernel_argumentos->logger, "Instruccion solicitada a la interfaz: %s", interfaz_solicitada->identificador);
-        log_debug(kernel_argumentos->logger, "Enviada por el socket: %d", interfaz_solicitada->socket_interfaz);
+        log_debug(kernel_argumentos->log_aux, "Instruccion solicitada a la interfaz: %s", interfaz_solicitada->identificador);
+        log_debug(kernel_argumentos->log_aux, "Enviada por el socket: %d", interfaz_solicitada->socket_interfaz);
     }
     else
     {
         agregar_a_cola_interfaz(kernel_argumentos, parametros, codigo_op, pcb);
-        log_debug(kernel_argumentos->logger, "Se agrega el proceso a la cola correspondiente a la interfaz solicitada");
+        log_debug(kernel_argumentos->log_aux, "Se agrega el proceso a la cola correspondiente a la interfaz solicitada");
     }
 
 
@@ -633,7 +637,7 @@ void agregar_a_cola_interfaz(t_planificacion* kernel_argumentos, instruccion_par
     param->opcode = op_code;
     param->params = parametros;
     dictionary_put(kernel_argumentos->parametros_en_espera, pid, param);
-    //free(pid);
+    free(pid);
 }
 
 interfaz* buscar_interfaz_por_nombre(char* nombre_interfaz) {
@@ -656,6 +660,25 @@ void enviar_instruccion_a_interfaz(t_queue_block* interfaz_destino, instruccion_
     instruccion_enviar->codigo_operacion = codigo_op;
     enviar_instruccion(instruccion_enviar, parametros, interfaz_destino->socket_interfaz, pid);
 
+    if(codigo_op == IO_STDIN_READ || codigo_op == IO_STDOUT_WRITE)
+    {
+        free(parametros->registro_direccion);
+    }
+    if(codigo_op == IO_FS_READ || codigo_op == IO_FS_WRITE)
+    {
+        free(parametros->registro_direccion);
+        free(parametros->params.io_fs.nombre_archivo);
+    }
+    if(codigo_op == IO_FS_TRUNCATE)
+    {
+        free(parametros->params.io_fs.nombre_archivo);
+    }
+    if(codigo_op == IO_FS_CREATE || codigo_op == IO_FS_DELETE)
+    {
+        free(parametros->params.io_fs.nombre_archivo);
+    }
+    
+    free(parametros->interfaz);
     free(parametros);
     free(instruccion_enviar);
 }
@@ -709,7 +732,7 @@ t_instruccion_params_opcode recibir_solicitud_cpu(int socket_servidor, t_pcb* pc
             break;
         }
         default:
-            log_warning(kernel_argumentos->logger, "Tipo de operación no válido.\n");
+            log_warning(kernel_argumentos->log_aux, "Tipo de operación no válido.\n");
             break;
         }
 
@@ -742,7 +765,7 @@ void procesar_entradasalida_terminada(t_queue_block *interfaz, t_planificacion *
     kernel_argumentos->colas.cantidad_procesos_block--;
     pthread_mutex_unlock(&kernel_argumentos->colas.mutex_block);
 
-    log_debug(kernel_argumentos->logger, "PID: %d", pcb_desalojado->pid);
+    log_debug(kernel_argumentos->log_aux, "PID: %d", pcb_desalojado->pid);
 
     if(pcb_desalojado->quantum != 0)
     {
@@ -783,7 +806,7 @@ void verificar_potencial_envio(t_planificacion* kernel_argumentos, t_queue_block
     t_instruccion_params_opcode* parametros = dictionary_get(kernel_argumentos->parametros_en_espera, pid);
 
     enviar_instruccion_a_interfaz(interfaz, parametros->params, parametros->opcode, pcb->pid);
-    log_debug(kernel_argumentos->logger, "Se envia una solicitud de instruccion de un proceso que estaba en espera (%d), a la interfaz: %s", pcb->pid, interfaz->identificador);
+    log_debug(kernel_argumentos->log_aux, "Se envia una solicitud de instruccion de un proceso que estaba en espera (%d), a la interfaz: %s", pcb->pid, interfaz->identificador);
 
     free(pid);
     free(parametros);
@@ -868,6 +891,7 @@ void solicitar_finalizacion_a_memoria(uint32_t pid, int socket_memoria)
     }
 
     free(a_enviar);
+    free(mensaje);
     eliminar_paquete(paquete);
 }
 

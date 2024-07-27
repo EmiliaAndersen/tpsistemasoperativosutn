@@ -16,13 +16,12 @@ void atender_cliente(void *void_args)
     //MEMORIA a CPU
     while (kernel_socket != -1)
     {   
-        log_debug(cpu_log, "Esperando paquete.");
         op_code cop = recibir_operacion(args->c_socket);
-        log_debug(cpu_log, "[%s] Paquete recibido con opcode %d en: %d", server_name, cop, args->c_socket);
+        log_debug(log_aux_cpu, "[%s] Paquete recibido con opcode %d en: %d", server_name, cop, args->c_socket);
 
         if (cop == -1)
         {
-            log_info(logger, "DISCONNECT!");
+            log_warning(log_aux_cpu, "DISCONNECT!");
             return;
         }
 
@@ -35,11 +34,8 @@ void atender_cliente(void *void_args)
            t_pcb* pcb;
         
             pcb = recibir_pcb(args->c_socket);  
-            pid_actual = pcb->pid;          
-			log_debug(logger, "Llego a CPU el <PID> es <%u>", pcb->pid);
-          
+            pid_actual = pcb->pid;                   
             realizar_ciclo_inst(conexion_memoria_cpu, pcb, logger, args->c_socket, args->lock_interrupt);
-            log_debug(logger, "Complete ciclo");
           
 			break;
         }
@@ -48,7 +44,7 @@ void atender_cliente(void *void_args)
             uint32_t pid = recibir_int_a_interrupt(args->c_socket);
 
             pthread_mutex_lock(&args->lock_interrupt);
-            log_debug(cpu_log, "Se recibe un pedido de interrucpcion para el PID: %d", pid);
+            log_debug(log_aux_cpu, "Se recibe un pedido de interrucpcion para el PID: %d", pid);
             hay_interrupcion = 1;
             pthread_mutex_unlock(&args->lock_interrupt);
 
@@ -56,15 +52,14 @@ void atender_cliente(void *void_args)
         }
         default:
         {
-            log_error(logger, "Algo anduvo mal en el server de %s", server_name);
-            log_info(logger, "Cop: %d", cop);
+            log_error(log_aux_cpu, "Algo anduvo mal en el server de %s", server_name);
             
             break;
         }
         }
     }
 
-    log_warning(logger, "El cliente se desconecto de %s server", server_name);
+    log_warning(log_aux_cpu, "El cliente se desconecto de %s server", server_name);
     free(args);
     return;
 }
@@ -102,7 +97,6 @@ void recibir_interrupcion_finq(int socket_cliente){
     int size;
     uint32_t* buffer = (uint32_t*)recibir_buffer(&size, socket_cliente);
     //log_info(logger, "Me llego la Interrupcion %u", buffer);
-    printf("Me llego la Interrupcion %u", buffer);
 
 }
 

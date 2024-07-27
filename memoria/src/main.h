@@ -10,5 +10,6 @@
 #include "memoriautils.h"
 extern t_log* memoria_log;
 extern t_config* memoria_config;
+extern t_log* log_aux_mem;
 
 #endif

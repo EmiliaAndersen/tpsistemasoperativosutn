@@ -26,14 +26,14 @@ t_list* abrir_pseudocodigo(char* path){
             char* instruccion = strdup(instruccionlinea);
             list_add_in_index(lista_inst,cont,instruccion);
             cont++;
-            printf("Contenido: %s", instruccion);
+            log_info(log_aux_mem,"Contenido: %s", instruccion);
             if(strcmp(strdup(instruccionlinea),"EXIT") == 0){
                  break;  
             }
         }   
     
 
-    log_info(memoria_log,"Cerrando archivo pseudocodigo...");
+    log_info(log_aux_mem,"Cerrando archivo pseudocodigo...");
     fclose(arch_pseudocodigo);
     return lista_inst;
 }

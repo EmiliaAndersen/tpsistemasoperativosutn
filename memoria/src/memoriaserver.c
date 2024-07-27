@@ -23,7 +23,7 @@ void atender_cliente(void *void_args)
 
         if (cop == -1)
         {
-            log_info(logger, "DISCONNECT!");
+            log_warning(log_aux_mem, "DISCONNECT!");
             return;
         }
 
@@ -32,7 +32,6 @@ void atender_cliente(void *void_args)
         case FRAME:{
             
             char* mensaje = recibir_pedido(client_socket);
-            log_info(logger, "Me llego el pedido de frame\n");
 
             uint32_t pid;
             int pag;
@@ -42,9 +41,12 @@ void atender_cliente(void *void_args)
             if(pag<list_size(tabla->tabla) || pag==0){
             int frame = list_get(tabla->tabla, pag);
             enviar_tamanio_pag_frame(client_socket, frame);
+            log_info(logger, "PID: <%u> - Pagina: <%d> - Marco: <%d>",pid,pag,frame);
+
             }
             else{
             enviar_tamanio_pag_frame(client_socket, -1);
+            log_warning(logger, "PID: <%u> - Pagina: <%d> - Marco: <%d>",pid,pag,-1);
             }
 
             free(mensaje);
@@ -78,8 +80,11 @@ void atender_cliente(void *void_args)
             tabla->pid = pid;
             tabla->tabla = list_create();
             tabla->instrucciones = lista_arch;
+            pthread_mutex_lock(&mutex_tabla_pags);
             list_add(tabla_pags, tabla);
-            log_info(memoria_log, "PID: <%d> - Tamaño: <%d>", pid, list_size(tabla->instrucciones));       
+            pthread_mutex_unlock(&mutex_tabla_pags);
+            log_info(logger, "PID: <%d> - Tamaño: <%d>", pid, list_size(tabla->tabla));     
+  
             free(pathpid);
 
             break;
@@ -87,30 +92,27 @@ void atender_cliente(void *void_args)
         case PID:{ //ENTRA ACA TAMBIEN
             char * pid_recibido =recibir_pc(client_socket);
             pid = atoi(pid_recibido);
-            log_info(logger, "Mi PID:%u", pid);
+            log_info(log_aux_mem, "Mi PID:%u", pid);
             free(pid_recibido);
             break;
         }
         case PC:
         {
             char * pc_recibido = recibir_pc(client_socket);
-            log_debug(logger, "PC recibido: %s", pc_recibido);
             usleep(retardo*1000);
             uint32_t pc = atoi(pc_recibido);
 
             t_tabla* tabla_pid = buscar_por_pid(pid);
             if(tabla_pid == NULL)
             {
-                log_debug(logger, "No encotre el proceso de pid %d", pid);
+                log_error(logger, "No encontre el proceso de pid %d", pid);
                 break;
             }
 
-            log_debug(logger, "PID obtenido: %d\n", tabla_pid->pid);
             char* instruccion = list_get(tabla_pid->instrucciones, pc);
             eliminar_linea_n(instruccion);
             enviar_mensaje(instruccion, client_socket);
-            log_debug(logger, "Mando la instruccion: %s\n", instruccion);
-
+            log_debug(log_aux_mem, "Mando la instruccion: %s\n", instruccion);
             free(pc_recibido);;
             break;
         }
@@ -119,11 +121,9 @@ void atender_cliente(void *void_args)
             recv(client_socket, &(pid), sizeof(uint32_t), MSG_WAITALL);
             instruccion_params* parametros_io = malloc(sizeof(instruccion_params));
             parametros_io = recibir_registro_direccion_tamanio_con_texto(client_socket);
-            log_info(memoria_log, "Escribir en memoria: %s", parametros_io->texto);
             usleep(retardo*1000);
             //GUARDAR TEXTO EN REGISTRO_DIRECCION
-            escribir_en_mem_io(parametros_io->texto, parametros_io->registro_direccion, parametros_io->cant_direcciones,parametros_io->registro_tamanio,pid);//VER CAMI EMI ACA SE TRABA
-            log_info(memoria_log, "Escribi en memoria: %s", parametros_io->texto); //ACA NO LLEGA
+            escribir_en_mem_io(parametros_io->texto, parametros_io->registro_direccion, parametros_io->cant_direcciones,parametros_io->registro_tamanio,pid);
             free(parametros_io);
             break;
         }
@@ -133,7 +133,7 @@ void atender_cliente(void *void_args)
             parametros_io = recibir_registro_direccion_tamanio(client_socket);
             usleep(retardo*1000);
             //BUSCAR EN REGISTRO_DIRECCION Y LEER EL REGISTRO_TAMAÑO
-            char* mensaje = leer_en_mem_io(parametros_io->registro_tamanio, parametros_io->registro_direccion, parametros_io->cant_direcciones,pid); //ACA SE TRABA
+            char* mensaje = leer_en_mem_io(parametros_io->registro_tamanio, parametros_io->registro_direccion, parametros_io->cant_direcciones,pid); 
             //MANDAR RESULTADO A IO
             enviar_mensaje(mensaje, client_socket);
             free(parametros_io);
@@ -146,8 +146,7 @@ void atender_cliente(void *void_args)
             parametros_io = recibir_registro_direccion_tamanio_con_texto(client_socket);
             usleep(retardo*1000);
             //GUARDAR TEXTO EN REGISTRO_DIRECCION
-            escribir_en_mem_io(parametros_io->texto, parametros_io->registro_direccion, parametros_io->cant_direcciones,parametros_io->registro_tamanio,pid); //VER CAMI EMI
-            log_info(memoria_log, "Escribi en memoria: %s", parametros_io->texto);
+            escribir_en_mem_io(parametros_io->texto, parametros_io->registro_direccion, parametros_io->cant_direcciones,parametros_io->registro_tamanio,pid); 
             free(parametros_io);
             break;
         }
@@ -157,13 +156,13 @@ void atender_cliente(void *void_args)
             parametros_io = recibir_registro_direccion_tamanio(client_socket);
             usleep(retardo*1000);
             //BUSCAR EN REGISTRO_DIRECCION Y LEER EL REGISTRO_TAMAÑO
-            char* mensaje = leer_en_mem_io(parametros_io->registro_tamanio, parametros_io->registro_direccion,parametros_io->cant_direcciones, pid); //SE LEE RARO LA SEGUNDA VEZ
+            char* mensaje = leer_en_mem_io(parametros_io->registro_tamanio, parametros_io->registro_direccion,parametros_io->cant_direcciones, pid);
             //MANDAR RESULTADO A IO
             enviar_mensaje(mensaje, client_socket);
             free(parametros_io);
             break;
         }
-        case ACCESO_TABLA:
+        /*case ACCESO_TABLA:
         {
             char* pidpag = recibir_mensaje(client_socket, logger);
             usleep(retardo*1000);
@@ -180,11 +179,10 @@ void atender_cliente(void *void_args)
                 log_error(logger, "No se pudo acceder a la pagina <%d> de la Tabla del Pid <%u>",pag, pid);
             }
             break;
-        }
+        }*/
         case CPU_RESIZE:
         {   
            char* mensaje = recibir_pedido(client_socket);
-           log_info(logger, "Me llego el  Pedido de Resize\n");
            usleep(retardo*1000);
 
            int tamanio;
@@ -231,7 +229,6 @@ void atender_cliente(void *void_args)
                 else{
                 log_error(logger, "Out Of Memory");
                 enviar_mensaje("outofmem",client_socket);
-
                 } 
             }     
             else{
@@ -245,7 +242,7 @@ void atender_cliente(void *void_args)
                     int frame = list_get(tabla_pid->tabla, i);
                     list_remove(tabla_pid->tabla, i);
                     bitarray_clean_bit(bitarray,frame);
-                    bitarray_clean_bit(escrito,frame);
+                   // bitarray_clean_bit(escrito,frame);
 
                 }
                 log_info(logger,"PID: <%d> - Tamaño Actual: <%d> - Tamaño a Reducir: <%d>", pid,tamanio_pid, tamanio);
@@ -276,10 +273,7 @@ void atender_cliente(void *void_args)
                             bitarray_set_bit(bitarray, i);
                             list_add(tabla_pid->tabla, i);
                             frames_ocupados++;
-                            printf("la i es %d \n",i );
-
-                        }
-                        printf("frames ocupados %d \n",frames_ocupados );
+                            }
                          if (frames_ocupados == cantframes_a_ocupar) {
                             break;
                        }
@@ -300,7 +294,6 @@ void atender_cliente(void *void_args)
         case PED_LECTURA:
         {
             char* buffer = recibir_pedido(client_socket);
-            log_info(logger, "Me llego el Pedido de Lectura\n"); 
             int tamanio;
             int frame;
             int desp;
@@ -353,9 +346,7 @@ void atender_cliente(void *void_args)
             int desp;
             uint32_t piid;
             char* buffer = recibir_pedido(client_socket);
-            
-            log_info(logger, "Me llego el Pedido de Escritura \n");  
-
+   
             sscanf(buffer, "%d/%7[^/]/%d/%d/%u", &tamanio,valor,&frame,&desp,&piid);
           
 
@@ -377,9 +368,7 @@ void atender_cliente(void *void_args)
                 if (bitarray_test_bit(bitarray, i) == 1  ) {
                     for(int x = 0; x< list_size(tabla_pid->tabla); x++){
                         if(list_get(tabla_pid->tabla,x) == i){
-                        printf("la x es %d",x);
-
-                        pag=x;
+                         pag=x;
                         encontrado=true;
                         break;
                         }  
@@ -389,7 +378,6 @@ void atender_cliente(void *void_args)
                     }
                 }
             }
-            printf("la pag es %d",pag);
             
             int tam_mensaje = sizeof(frame_siguiente)+sizeof(pag); 
             char* mensaje = malloc(tam_mensaje);
@@ -426,7 +414,7 @@ void atender_cliente(void *void_args)
         {
             char* pidc = recibir_mensaje(client_socket, logger);
 
-            log_debug(logger, "Pedido de finalizacion para el PID: %s", pidc);
+            log_debug(log_aux_mem, "Pedido de finalizacion para el PID: %s", pidc);
             usleep(retardo*1000);
             uint32_t pid = atoi(pidc);
 
@@ -434,7 +422,7 @@ void atender_cliente(void *void_args)
             t_tabla* tabla_pid = eliminar_tabla_pid(pid);
             if(tabla_pid == NULL)
             {
-                log_debug(logger, "No encontre la tabla del PID %d", pid);
+                log_error(logger, "No encontre la tabla del PID %d", pid);
                 break;
             }
 

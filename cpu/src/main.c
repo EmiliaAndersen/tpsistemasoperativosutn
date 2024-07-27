@@ -5,6 +5,7 @@ int hay_interrupcion;
 t_log* cpu_log;
 int cant_entradas_tlb;
 char* algoritmo; 
+t_log* log_aux_cpu;
 
 
 int main(void){
@@ -23,6 +24,7 @@ int main(void){
     hay_interrupcion = 0;
      
     cpu_log = iniciar_logger("cpu.log","cpu");
+    log_aux_cpu = iniciar_logger("cpu_aux.log","cpu_aux");
     cpu_config = iniciar_config("cpu.config");
 
     // Creo estructura para los hilos
@@ -43,7 +45,7 @@ int main(void){
     // Establecer conexiones
     
 	conexion_memoria_cpu = crear_conexion(ip_memoria, puerto_memoria);
-    log_info(cpu_log, "CPU conectado a MEMORIA");
+    log_info(log_aux_cpu, "CPU conectado a MEMORIA");
     send_handshake(conexion_memoria_cpu, cpu_log, "CPU / MEMORIA");
     enviar_pedido_tam_mem(conexion_memoria_cpu);
     recibir_tamanio_pag(conexion_memoria_cpu, cpu_log, &tam_pag);
@@ -94,6 +96,7 @@ int main(void){
     //free(args_interrupt);
     free(cpu_argumentos);
     pthread_mutex_destroy(&lock_interrupt);
+    log_destroy(log_aux_cpu);
 
     return 0;
 }
@@ -103,10 +106,10 @@ void* conectar_dispatch(void* void_args)
     t_config_cpu *cpu_argumentos = (t_config_cpu*) void_args;
 
     int cpu_dispatch_server = iniciar_servidor(cpu_argumentos->config_leida.puerto_cpu_dispatch, cpu_log);
-    log_info(cpu_log, "CPU DISPATCH listo para recibir a KERNEL");
+    log_info(log_aux_cpu, "CPU DISPATCH listo para recibir a KERNEL");
 
     cpu_argumentos->socket_dispatch = esperar_cliente(cpu_dispatch_server, cpu_log);
-    log_debug(cpu_log, "Kernel conectado a Dispatch en socket: %d", cpu_argumentos->socket_dispatch);
+    log_debug(log_aux_cpu, "Kernel conectado a Dispatch en socket: %d", cpu_argumentos->socket_dispatch);
 }
 
 void* conectar_interrupt(void* args)
@@ -114,9 +117,9 @@ void* conectar_interrupt(void* args)
    t_config_cpu *cpu_argumentos = (t_config_cpu*) args;
 
     int cpu_interrupt_server = iniciar_servidor(cpu_argumentos->config_leida.puerto_cpu_interrupt, cpu_log);
-    log_info(cpu_log, "CPU INTERRUPT listo para recibir a KERNEL");
+    log_info(log_aux_cpu, "CPU INTERRUPT listo para recibir a KERNEL");
 
     cpu_argumentos->socket_interrupt = esperar_cliente(cpu_interrupt_server, cpu_log);
-    log_debug(cpu_log, "Kernel conectado a Interrupt en socket: %d", cpu_argumentos->socket_interrupt);
+    log_debug(log_aux_cpu, "Kernel conectado a Interrupt en socket: %d", cpu_argumentos->socket_interrupt);
 
 }

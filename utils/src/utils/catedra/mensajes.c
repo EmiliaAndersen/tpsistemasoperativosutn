@@ -169,7 +169,6 @@ void recibir_ped_tamanio_pag(int socket_cliente, t_log* logger)
 {
     int size;
     char* buffer = recibir_buffer(&size, socket_cliente);
-    log_info(logger, "Me llego el Pedido de TAM PAG");
     free(buffer);
 }
 
