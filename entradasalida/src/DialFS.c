@@ -197,11 +197,7 @@ void borrar_archivo(char* nombre){
 
 void truncar_archivo(char* nombre, uint32_t tamanio, uint32_t pid){
     usleep(tiempo_unidad_trabajo * 1000);
-    FILE* archivo_bloques = fopen(blocks_path, "rb");
-    if (!archivo_bloques) {
-        log_error(log_aux, "Error al abrir bloques.dat");
-        exit(EXIT_FAILURE);
-    }
+    
     Archivo* archivo = buscar_archivo_por_nombre(nombre);
     t_config* file_config = config_create(archivo->ruta);
     int bloque_inicial = config_get_int_value(file_config, "BLOQUE_INICIAL");
@@ -222,12 +218,6 @@ void truncar_archivo(char* nombre, uint32_t tamanio, uint32_t pid){
         for (int i = bloque_final + 1; i <= bloque_final_anterior; i++) {
             bitarray_clean_bit(bitmap, i);
         }
-        int start = bloque_final * block_size;
-        int tamanio_cero = (bloque_final_anterior - bloque_final) * block_size;
-        char *ceros = calloc(tamanio_cero, 1);
-        fseek(archivo_bloques, start, SEEK_SET);
-        fwrite(ceros, tamanio_cero, 1, archivo_bloques);
-        free(ceros);
     }
     else if (bloque_final > bloque_final_anterior) { //Agrandar
         if (!bloques_contiguos_libres(bloque_final_anterior, bloque_final)){
@@ -243,12 +233,6 @@ void truncar_archivo(char* nombre, uint32_t tamanio, uint32_t pid){
         for (int i = bloque_inicial; i <= bloque_final; i++) {
             bitarray_set_bit(bitmap, i);
         }
-        int start = bloque_final_anterior * block_size;
-        int tamanio_cero = (bloque_final - bloque_final_anterior) * block_size;
-        char *ceros = calloc(tamanio_cero, 1);
-        fseek(archivo_bloques, start, SEEK_SET);
-        fwrite(ceros, tamanio_cero, 1, archivo_bloques);
-        free(ceros);
     }
     char * tamanio_config = int_to_char(tamanio);
     config_set_value(file_config, "TAMANIO_ARCHIVO", tamanio_config);
@@ -258,7 +242,6 @@ void truncar_archivo(char* nombre, uint32_t tamanio, uint32_t pid){
     msync(bitmap->bitarray, bitmap_size, MS_SYNC);
     guardar_lista_archivos();
     free(tamanio_config);
-    fclose(archivo_bloques);
 }
 
 void escribir_archivo(char* nombre, off_t puntero, char* a_escribir, uint32_t tamanio){
@@ -436,7 +419,6 @@ int limpiar_bloques_y_buscar_libres(int bloque_inicial, int bloque_final) {
 
 void compactar(int* bloque_inicial, int bloque_final, Archivo* file) {
     ordenar_archivos_por_comienzo();
-
     int num_bloques = 0;
     Archivo** bloques_originales = malloc(sizeof(Archivo) * list_size(lista_archivos));
     char** buffers_datos = NULL;
@@ -469,10 +451,9 @@ void compactar(int* bloque_inicial, int bloque_final, Archivo* file) {
     }
     free(buffers_datos);
     free(buffer_de_archivo_a_mover);
-    fclose(archivo_bloques);
 
     msync(bitmap->bitarray, bitmap_size, MS_SYNC);
-    
+    fclose(archivo_bloques);
     usleep(retraso_compactacion * 1000);
 }
 
@@ -482,11 +463,10 @@ char** guardar_contenido_bloques(Archivo** bloques_originales, int num_bloques, 
         log_error(log_aux, "Error al asignar memoria para buffers_datos");
         exit(EXIT_FAILURE);
     }
-    memset(buffers_datos, 0, sizeof(char*) * num_bloques);
     for (int i = 0; i < num_bloques; i++) {
         int start =  bloques_originales[i]->comienzo * block_size;
         int tamanio = start + bloques_originales[i]->tamanio;
-        buffers_datos[i] = malloc(tamanio);
+        buffers_datos[i] = malloc(tamanio); 
         if (buffers_datos[i] == NULL) {
             log_error(log_aux, "Error al asignar memoria para buffers_datos[i]");
             for (int j = 0; j < i; j++) {
@@ -499,22 +479,6 @@ char** guardar_contenido_bloques(Archivo** bloques_originales, int num_bloques, 
         fread(buffers_datos[i], tamanio, 1, archivo_bloques);
     }
 
-    for (int i = 0; i < num_bloques; i++) {
-        int start =  bloques_originales[i]->comienzo * block_size;
-        int tamanio = start + bloques_originales[i]->tamanio;
-        fseek(archivo_bloques, start, SEEK_SET);
-        char* ceros = calloc(tamanio, 1); // Crear un buffer lleno de ceros para rellenar los espacios que movi
-        if (ceros == NULL) {
-            log_error(log_aux, "Error al asignar memoria para ceros");
-            for (int j = 0; j < i; j++) {
-                free(buffers_datos[j]);
-            }
-            free(buffers_datos);
-            return NULL;
-        }
-        fwrite(ceros, tamanio, 1, archivo_bloques);
-        free(ceros); // Liberar el buffer de ceros
-    }
     return buffers_datos;
 }
 
